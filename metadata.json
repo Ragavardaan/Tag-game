@@ -1,0 +1,6 @@
+{
+  "name": "Multiplayer Tag Arena",
+  "description": "A real-time web-connected multiplayer Tag game in a custom 2D arena. Supports self-hosted lobbies, custom settings for round duration, player speed, max players, powerups, obstacles, speech bubbles, and live tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
