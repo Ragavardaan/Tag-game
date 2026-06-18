@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ServerMessage } from '../types';
 
 interface ChatBoxProps {
-  ws: WebSocket | null;
+  ws: any;
   chatFeed: Array<{ id: string; name: string; color: string; text: string; timestamp: number }>;
 }
 
@@ -26,7 +26,7 @@ export default function ChatBox({ ws, chatFeed }: ChatBoxProps) {
   };
 
   const handleSendEmoji = (emoji: string) => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!ws || ws.readyState !== 1) return;
     ws.send(JSON.stringify({ type: 'emoji', emoji }));
   };
 
