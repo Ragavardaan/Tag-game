@@ -5,7 +5,7 @@ import { MAP_WIDTH, MAP_HEIGHT, PLAYER_RADIUS, POWERUP_RADIUS, MAP_WALLS, checkW
 interface GameCanvasProps {
   room: Room;
   personalId: string;
-  ws: WebSocket | null;
+  ws: any;
 }
 
 export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
@@ -152,7 +152,7 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
           if (targetX !== oldX || targetY !== oldY) {
             playerPosRef.current = { x: targetX, y: targetY };
             
-            if (ws && ws.readyState === WebSocket.OPEN) {
+            if (ws && ws.readyState === 1) {
               ws.send(
                 JSON.stringify({
                   type: 'move',
