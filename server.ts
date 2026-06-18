@@ -1,21 +1,26 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
-import { WebSocketServer, WebSocket } from 'ws';
+import { Server as SocketIOServer, Socket } from 'socket.io';
 import { createServer as createViteServer } from 'vite';
 import { GameConfig, Player, PowerUp, Room, ClientMessage, ServerMessage, Wall } from './src/types';
 import { MAP_WIDTH, MAP_HEIGHT, PLAYER_RADIUS, POWERUP_RADIUS, MAP_WALLS } from './src/maps';
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const io = new SocketIOServer(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 // Rooms database
 const rooms: Record<string, Room> = {};
-// Mapping of WebSocket connection to player ID/room code
-const clients = new Map<WebSocket, { playerId: string; roomCode: string }>();
+// Mapping of Socket connection ID to player detail/room code
+const clients = new Map<string, { socket: Socket; playerId: string; roomCode: string }>();
 
 // Generate unique room code (4 capital letters)
 function generateRoomCode(): string {
@@ -36,10 +41,8 @@ function generateId(): string {
 }
 
 // Send message to a socket safely
-function sendMessage(ws: WebSocket, message: ServerMessage) {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(message));
-  }
+function sendMessage(socket: Socket, message: ServerMessage) {
+  socket.emit('message', JSON.stringify(message));
 }
 
 // Broadcast to all players in a room
@@ -47,9 +50,10 @@ function broadcastToRoom(roomCode: string, message: ServerMessage) {
   const room = rooms[roomCode];
   if (!room) return;
 
-  for (const [ws, info] of clients.entries()) {
+  const msgStr = JSON.stringify(message);
+  for (const [socketId, info] of clients.entries()) {
     if (info.roomCode === roomCode) {
-      sendMessage(ws, message);
+      info.socket.emit('message', msgStr);
     }
   }
 }
@@ -366,10 +370,10 @@ function endGame(roomCode: string) {
 }
 
 // WS Connection handler
-wss.on('connection', (ws) => {
-  ws.on('message', (messageBuffer) => {
+io.on('connection', (socket) => {
+  socket.on('message', (messageData) => {
     try {
-      const data: ClientMessage = JSON.parse(messageBuffer.toString());
+      const data: ClientMessage = typeof messageData === 'string' ? JSON.parse(messageData) : messageData;
       
       switch (data.type) {
         case 'create': {
@@ -416,9 +420,9 @@ wss.on('connection', (ws) => {
             winnerId: null
           };
 
-          clients.set(ws, { playerId, roomCode });
+          clients.set(socket.id, { socket, playerId, roomCode });
           
-          sendMessage(ws, {
+          sendMessage(socket, {
             type: 'room_snapshot',
             room: rooms[roomCode],
             personalId: playerId
@@ -432,18 +436,18 @@ wss.on('connection', (ws) => {
           const room = rooms[code];
           
           if (!room) {
-            sendMessage(ws, { type: 'error', message: 'Room not found! Double check the room code.' });
+            sendMessage(socket, { type: 'error', message: 'Room not found! Double check the room code.' });
             return;
           }
 
           if (room.status !== 'lobby') {
-            sendMessage(ws, { type: 'error', message: 'Game has already started or finished.' });
+            sendMessage(socket, { type: 'error', message: 'Game has already started or finished.' });
             return;
           }
 
           const currentPlayersCount = Object.keys(room.players).length;
           if (currentPlayersCount >= room.config.maxPlayers) {
-            sendMessage(ws, { type: 'error', message: 'This room is currently full.' });
+            sendMessage(socket, { type: 'error', message: 'This room is currently full.' });
             return;
           }
 
@@ -470,9 +474,9 @@ wss.on('connection', (ws) => {
           };
 
           room.players[playerId] = newPlayer;
-          clients.set(ws, { playerId, roomCode: code });
+          clients.set(socket.id, { socket, playerId, roomCode: code });
 
-          sendMessage(ws, {
+          sendMessage(socket, {
             type: 'room_snapshot',
             room,
             personalId: playerId
@@ -493,7 +497,7 @@ wss.on('connection', (ws) => {
         }
 
         case 'update_config': {
-          const info = clients.get(ws);
+          const info = clients.get(socket.id);
           if (!info) return;
 
           const room = rooms[info.roomCode];
@@ -512,14 +516,14 @@ wss.on('connection', (ws) => {
         }
 
         case 'start_game': {
-          const info = clients.get(ws);
+          const info = clients.get(socket.id);
           if (!info) return;
 
           const room = rooms[info.roomCode];
           if (!room || room.hostId !== info.playerId) return;
 
           if (Object.keys(room.players).length < 2) {
-            sendMessage(ws, { type: 'error', message: 'Need at least 2 players to start a multiplayer match!' });
+            sendMessage(socket, { type: 'error', message: 'Need at least 2 players to start a multiplayer match!' });
             return;
           }
 
@@ -552,7 +556,7 @@ wss.on('connection', (ws) => {
         }
 
         case 'move': {
-          const info = clients.get(ws);
+          const info = clients.get(socket.id);
           if (!info) return;
 
           const room = rooms[info.roomCode];
@@ -575,7 +579,7 @@ wss.on('connection', (ws) => {
         }
 
         case 'emoji': {
-          const info = clients.get(ws);
+          const info = clients.get(socket.id);
           if (!info) return;
 
           const room = rooms[info.roomCode];
@@ -592,7 +596,7 @@ wss.on('connection', (ws) => {
         }
 
         case 'chat': {
-          const info = clients.get(ws);
+          const info = clients.get(socket.id);
           if (!info) return;
 
           const room = rooms[info.roomCode];
@@ -618,7 +622,7 @@ wss.on('connection', (ws) => {
         }
 
         case 'leave': {
-          handleDisconnect(ws);
+          handleDisconnect(socket);
           break;
         }
       }
@@ -627,17 +631,17 @@ wss.on('connection', (ws) => {
     }
   });
 
-  ws.on('close', () => {
-    handleDisconnect(ws);
+  socket.on('disconnect', () => {
+    handleDisconnect(socket);
   });
 });
 
-function handleDisconnect(ws: WebSocket) {
-  const info = clients.get(ws);
+function handleDisconnect(socket: Socket) {
+  const info = clients.get(socket.id);
   if (!info) return;
 
   const { playerId, roomCode } = info;
-  clients.delete(ws);
+  clients.delete(socket.id);
 
   const room = rooms[roomCode];
   if (!room) return;
