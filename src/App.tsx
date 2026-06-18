@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useRef, FormEvent } from 'react';
+import { io } from 'socket.io-client';
 import { GameConfig, Room, Player, ClientMessage, ServerMessage } from './types';
 import GameCanvas from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
@@ -23,7 +24,7 @@ const DIGNITY_COLORS = [
 ];
 
 export default function App() {
-  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [ws, setWs] = useState<any>(null);
   const [room, setRoom] = useState<Room | null>(null);
   const [personalId, setPersonalId] = useState<string>('');
   const [chatFeed, setChatFeed] = useState<Array<{ id: string; name: string; color: string; text: string; timestamp: number }>>([]);
@@ -61,20 +62,27 @@ export default function App() {
   const connectToServer = (messagePayload: ClientMessage) => {
     setError(null);
 
-    // Derive server websockets host dynamically based on browser location protocols
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // Derive server connection host dynamically based on browser location
+    const protocol = window.location.protocol;
     const wsUrl = `${protocol}//${window.location.host}`;
     
-    const socket = new WebSocket(wsUrl);
+    // Connect using Socket.IO starting with standard HTTP Long Polling for 100% firewall compatibility
+    const socket = io(wsUrl, {
+      transports: ['polling', 'websocket']
+    });
 
-    socket.onopen = () => {
+    socket.on('connect', () => {
+      // Polyfill WebSocket qualities for seamless Drop-In compatibility with GameCanvas and ChatBox
+      (socket as any).readyState = 1; // 1 means OPEN
+      (socket as any).OPEN = 1;
+      
       // Send initial request (create or join) when socket establishes
       socket.send(JSON.stringify(messagePayload));
-    };
+    });
 
-    socket.onmessage = (event) => {
+    socket.on('message', (data) => {
       try {
-        const msg: ServerMessage = JSON.parse(event.data);
+        const msg: ServerMessage = typeof data === 'string' ? JSON.parse(data) : data;
 
         switch (msg.type) {
           case 'room_snapshot':
@@ -124,12 +132,13 @@ export default function App() {
       } catch (err) {
         console.error('Error handling server payload:', err);
       }
-    };
+    });
 
-    socket.onclose = () => {
+    socket.on('disconnect', () => {
+      (socket as any).readyState = 3; // 3 means CLOSED
       setWs(null);
       setRoom(null);
-    };
+    });
 
     setWs(socket);
   };
@@ -146,7 +155,7 @@ export default function App() {
 
   // Host triggers config changes in real-time
   const updateHostConfig = (updatedConfig: GameConfig) => {
-    if (ws && ws.readyState === WebSocket.OPEN && room?.hostId === personalId) {
+    if (ws && ws.readyState === 1 && room?.hostId === personalId) {
       ws.send(JSON.stringify({ type: 'update_config', config: updatedConfig }));
     }
   };
@@ -220,7 +229,7 @@ export default function App() {
   };
 
   const handleStartGame = () => {
-    if (ws && ws.readyState === WebSocket.OPEN && room?.hostId === personalId) {
+    if (ws && ws.readyState === 1 && room?.hostId === personalId) {
       ws.send(JSON.stringify({ type: 'start_game' }));
     }
   };
