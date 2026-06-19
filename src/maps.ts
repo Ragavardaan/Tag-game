@@ -4,6 +4,31 @@ export const MAP_WIDTH = 900;
 export const MAP_HEIGHT = 600;
 export const PLAYER_RADIUS = 16;
 export const POWERUP_RADIUS = 14;
+export const PORTAL_RADIUS = 22;
+
+export interface Portal {
+  x: number;
+  y: number;
+}
+
+export const MAP_PORTALS: Record<'arena' | 'maze' | 'open' | 'blocks', Portal[]> = {
+  open: [
+    { x: 120, y: 300 },
+    { x: 780, y: 300 }
+  ],
+  arena: [
+    { x: 80, y: 300 },
+    { x: 820, y: 300 }
+  ],
+  maze: [
+    { x: 80, y: 300 },
+    { x: 820, y: 300 }
+  ],
+  blocks: [
+    { x: 80, y: 80 },
+    { x: 820, y: 520 }
+  ]
+};
 
 export const MAP_WALLS: Record<'arena' | 'maze' | 'open' | 'blocks', Wall[]> = {
   open: [
