@@ -4,6 +4,7 @@ export interface GameConfig {
   speed: 'slow' | 'normal' | 'fast' | 'insane';
   mode: 'classic' | 'bomb'; // classic: standard tag, bomb: hot potato
   map: 'arena' | 'maze' | 'open' | 'blocks';
+  botsCount: number; // number of AI players in match
 }
 
 export interface Player {
@@ -25,6 +26,7 @@ export interface Player {
   message: string | null;
   messageExpiresAt: number; // server timestamp
   lastTeleportTime?: number; // server timestamp to handle portal exit cooldowns
+  isBot?: boolean; // True if this is an AI bot player
 }
 
 export interface PowerUp {
@@ -55,6 +57,7 @@ export interface Room {
   tagCooldownUntil: number; // server timestamp when tagging is valid
   lastTaggerId: string | null;
   winnerId: string | null;
+  loserId: string | null;
 }
 
 export type ClientMessage =
