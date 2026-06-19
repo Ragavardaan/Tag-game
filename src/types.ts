@@ -62,6 +62,7 @@ export type ClientMessage =
   | { type: 'create'; config: GameConfig; name: string; color: string }
   | { type: 'update_config'; config: GameConfig }
   | { type: 'start_game' }
+  | { type: 'back_to_lobby' }
   | { type: 'move'; x: number; y: number; vx: number; vy: number }
   | { type: 'emoji'; emoji: string }
   | { type: 'chat'; text: string }
