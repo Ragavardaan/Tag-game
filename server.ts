@@ -4,7 +4,7 @@ import path from 'path';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { createServer as createViteServer } from 'vite';
 import { GameConfig, Player, PowerUp, Room, ClientMessage, ServerMessage, Wall } from './src/types';
-import { MAP_WIDTH, MAP_HEIGHT, PLAYER_RADIUS, POWERUP_RADIUS, MAP_WALLS, MAP_PORTALS, PORTAL_RADIUS } from './src/maps';
+import { MAP_WIDTH, MAP_HEIGHT, PLAYER_RADIUS, POWERUP_RADIUS, MAP_WALLS, MAP_PORTALS, PORTAL_RADIUS, checkWallCollision } from './src/maps';
 
 const app = express();
 const server = http.createServer(app);
@@ -38,6 +38,90 @@ function generateRoomCode(): string {
 // Generate unique ID
 function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
+}
+
+const BOT_PROFILES = [
+  { name: '🤖 TurboBot', color: '#10B981' },
+  { name: '🤖 PinkyPounce', color: '#EC4899' },
+  { name: '🤖 AstroTagger', color: '#3B82F6' },
+  { name: '🤖 SandSkater', color: '#F59E0B' },
+  { name: '🤖 WarpCore', color: '#8B5CF6' },
+  { name: '🤖 FreezeRay', color: '#06B6D4' }
+];
+
+function getSafeSpawnPosition(walls: Wall[]): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  let valid = false;
+  let attempts = 0;
+  const radius = PLAYER_RADIUS;
+
+  while (!valid && attempts < 100) {
+    attempts++;
+    x = Math.floor(Math.random() * (MAP_WIDTH - 200)) + 100;
+    y = Math.floor(Math.random() * (MAP_HEIGHT - 200)) + 100;
+
+    let hitWall = false;
+    for (const wall of walls) {
+      if (
+        x + radius > wall.x &&
+        x - radius < wall.x + wall.w &&
+        y + radius > wall.y &&
+        y - radius < wall.y + wall.h
+      ) {
+        hitWall = true;
+        break;
+      }
+    }
+    if (!hitWall) {
+      valid = true;
+    }
+  }
+
+  if (!valid) {
+    x = MAP_WIDTH / 2;
+    y = MAP_HEIGHT / 2;
+  }
+
+  return { x, y };
+}
+
+function populateBots(room: Room) {
+  // Clear any existing bots from room.players
+  for (const pid in room.players) {
+    if (room.players[pid].isBot) {
+      delete room.players[pid];
+    }
+  }
+
+  const walls = MAP_WALLS[room.config.map] || [];
+  const botCount = room.config.botsCount || 0;
+  for (let i = 0; i < botCount; i++) {
+    const profile = BOT_PROFILES[i % BOT_PROFILES.length];
+    const botId = `bot_${generateId()}_${i}`;
+    const spawnPos = getSafeSpawnPosition(walls);
+    const botPlayer: Player = {
+      id: botId,
+      name: profile.name,
+      color: profile.color,
+      x: spawnPos.x,
+      y: spawnPos.y,
+      vx: 0,
+      vy: 0,
+      isIt: false,
+      isAlive: true,
+      score: 0,
+      shieldUntil: 0,
+      speedBoostUntil: 0,
+      frozenUntil: 0,
+      emoji: null,
+      emojiExpiresAt: 0,
+      message: null,
+      messageExpiresAt: 0,
+      isBot: true
+    };
+    room.players[botId] = botPlayer;
+  }
 }
 
 // Send message to a socket safely
@@ -235,6 +319,167 @@ function startGameLoop(roomCode: string) {
         broadcastToRoom(roomCode, { type: 'room_updated', room });
       }
 
+      // Update bots movement at 30 FPS on the server
+      const currentAliveList = Object.values(room.players).filter(p => p.isAlive);
+      const bots = currentAliveList.filter(p => p.isBot);
+      
+      if (bots.length > 0) {
+        let botsMoved = false;
+        const walls = MAP_WALLS[room.config.map] || [];
+        const portals = MAP_PORTALS[room.config.map] || [];
+
+        // Determine base speed according to game speed setting
+        let baseSpeed = 3.2; // default normal
+        if (room.config.speed === 'slow') baseSpeed = 2.0;
+        else if (room.config.speed === 'fast') baseSpeed = 4.6;
+        else if (room.config.speed === 'insane') baseSpeed = 6.5;
+
+        for (const bot of bots) {
+          // Skip if frozen
+          if (now < bot.frozenUntil) {
+            bot.vx = 0;
+            bot.vy = 0;
+            continue;
+          }
+
+          // Speed boost multiplier
+          let currentSpeed = baseSpeed;
+          if (now < bot.speedBoostUntil) {
+            currentSpeed *= 1.35;
+          }
+
+          let targetVx = 0;
+          let targetVy = 0;
+
+          if (bot.isIt) {
+            // Case A: Bot is IT - chase the nearest alive human / bot
+            const targets = currentAliveList.filter(p => p.id !== bot.id && now >= p.shieldUntil);
+            if (targets.length > 0) {
+              // Find closest target
+              let closestTarget = targets[0];
+              let minDistance = Infinity;
+              for (const t of targets) {
+                const dx = t.x - bot.x;
+                const dy = t.y - bot.y;
+                const dist = dx * dx + dy * dy;
+                if (dist < minDistance) {
+                  minDistance = dist;
+                  closestTarget = t;
+                }
+              }
+
+              // Calculate direction vector
+              const dx = closestTarget.x - bot.x;
+              const dy = closestTarget.y - bot.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+
+              targetVx = (dx / dist) * currentSpeed;
+              targetVy = (dy / dist) * currentSpeed;
+            }
+          } else {
+            // Case B: Bot is not IT - run away from whoever IS IT
+            const itPlayer = currentAliveList.find(p => p.isIt);
+            if (itPlayer) {
+              const dx = bot.x - itPlayer.x;
+              const dy = bot.y - itPlayer.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+
+              // If IT is reasonably close, run away actively
+              if (dist < 320) {
+                targetVx = (dx / dist) * currentSpeed;
+                targetVy = (dy / dist) * currentSpeed;
+              } else {
+                // Otherwise, perform some slight wandering/patrolling behavior
+                if (!bot.vx && !bot.vy) {
+                  const angle = Math.random() * Math.PI * 2;
+                  bot.vx = Math.cos(angle) * (currentSpeed * 0.5);
+                  bot.vy = Math.sin(angle) * (currentSpeed * 0.5);
+                }
+                if (Math.random() < 0.04) {
+                  const angle = Math.random() * Math.PI * 2;
+                  targetVx = Math.cos(angle) * (currentSpeed * 0.5);
+                  targetVy = Math.sin(angle) * (currentSpeed * 0.5);
+                } else {
+                  targetVx = bot.vx || 0;
+                  targetVy = bot.vy || 0;
+                }
+              }
+            } else {
+              // No one is IT, do random wander
+              if (Math.random() < 0.04) {
+                const angle = Math.random() * Math.PI * 2;
+                targetVx = Math.cos(angle) * (currentSpeed * 0.4);
+                targetVy = Math.sin(angle) * (currentSpeed * 0.4);
+              } else {
+                targetVx = bot.vx || 0;
+                targetVy = bot.vy || 0;
+              }
+            }
+          }
+
+          // Smoothly interpolate to target velocity
+          bot.vx = bot.vx * 0.8 + targetVx * 0.2;
+          bot.vy = bot.vy * 0.8 + targetVy * 0.2;
+
+          // Apply displacement
+          let nextX = bot.x + bot.vx;
+          let nextY = bot.y + bot.vy;
+
+          // Check wall collision with sliding resolution
+          const wallCol = checkWallCollision(nextX, nextY, PLAYER_RADIUS, walls);
+          if (wallCol && wallCol.collided) {
+            nextX = wallCol.x;
+            nextY = wallCol.y;
+
+            const nx = wallCol.normalX;
+            const ny = wallCol.normalY;
+            const dot = bot.vx * nx + bot.vy * ny;
+            if (dot < 0) {
+              bot.vx = bot.vx - dot * nx;
+              bot.vy = bot.vy - dot * ny;
+            }
+          }
+
+          // Check Teleport Portal usage for Bots
+          if (portals.length === 2) {
+            const lastTelePort = bot.lastTeleportTime || 0;
+            if (now - lastTelePort > 1500) {
+              for (let i = 0; i < 2; i++) {
+                const portal = portals[i];
+                const dx = nextX - portal.x;
+                const dy = nextY - portal.y;
+                if (Math.sqrt(dx * dx + dy * dy) < PLAYER_RADIUS + PORTAL_RADIUS) {
+                  const destPortal = portals[1 - i];
+                  nextX = destPortal.x;
+                  nextY = destPortal.y;
+                  bot.lastTeleportTime = now;
+                  bot.vx = 0;
+                  bot.vy = 0;
+                  
+                  broadcastToRoom(roomCode, {
+                    type: 'powerup_grant',
+                    powerupType: 'Portal Teleporter 🌀',
+                    playerName: bot.name
+                  });
+                  break;
+                }
+              }
+            }
+          }
+
+          // Move coordinates
+          if (bot.x !== nextX || bot.y !== nextY) {
+            bot.x = nextX;
+            bot.y = nextY;
+            botsMoved = true;
+          }
+        }
+
+        if (botsMoved) {
+          broadcastToRoom(roomCode, { type: 'room_updated', room });
+        }
+      }
+
       // Check player power-up collection on the server to prevent hacking/exploits
       const alivePlayers = Object.values(room.players).filter(p => p.isAlive);
       for (const player of alivePlayers) {
@@ -333,20 +578,28 @@ function endGame(roomCode: string) {
 
   room.status = 'gameover';
 
-  // Determine winner
+  // Determine loser (the player who has the tag - is IT)
   const playersArr = Object.values(room.players);
+  const currentIt = playersArr.find(p => p.isIt);
+  room.loserId = currentIt ? currentIt.id : null;
+
   if (room.config.mode === 'bomb') {
     // Winner is the last one surviving
     const survivors = playersArr.filter(p => p.isAlive);
     if (survivors.length > 0) {
       room.winnerId = survivors[0].id;
     } else {
-      // Fallback
       room.winnerId = playersArr[0]?.id || null;
     }
+    // If no currentIt is alive, the one who just exploded is the loser
+    if (!room.loserId) {
+      const deadPlayers = playersArr.filter(p => !p.isAlive);
+      if (deadPlayers.length > 0) {
+        room.loserId = deadPlayers[deadPlayers.length - 1].id;
+      }
+    }
   } else {
-    // Classic mode: highest score. Penality for the unfortunate current IT.
-    const currentIt = playersArr.find(p => p.isIt);
+    // Classic mode: penalty for the unfortunate current IT.
     if (currentIt) {
       currentIt.score = Math.max(0, currentIt.score - 100);
     }
@@ -411,7 +664,8 @@ io.on('connection', (socket) => {
               duration: data.config.duration || 60,
               speed: data.config.speed || 'normal',
               mode: data.config.mode || 'classic',
-              map: data.config.map || 'arena'
+              map: data.config.map || 'arena',
+              botsCount: Math.min(6, Math.max(0, data.config.botsCount !== undefined ? data.config.botsCount : 0))
             },
             players: { [playerId]: newPlayer },
             powerUps: [],
@@ -419,7 +673,8 @@ io.on('connection', (socket) => {
             countdownTimer: 5,
             tagCooldownUntil: 0,
             lastTaggerId: null,
-            winnerId: null
+            winnerId: null,
+            loserId: null
           };
 
           clients.set(socket.id, { socket, playerId, roomCode });
@@ -510,7 +765,8 @@ io.on('connection', (socket) => {
             duration: data.config.duration,
             speed: data.config.speed,
             mode: data.config.mode,
-            map: data.config.map
+            map: data.config.map,
+            botsCount: Math.min(6, Math.max(0, data.config.botsCount !== undefined ? data.config.botsCount : 0))
           };
 
           broadcastToRoom(info.roomCode, { type: 'room_updated', room });
@@ -524,19 +780,27 @@ io.on('connection', (socket) => {
           const room = rooms[info.roomCode];
           if (!room || room.hostId !== info.playerId) return;
 
+          // Populate configured AI bots!
+          populateBots(room);
+
           if (Object.keys(room.players).length < 2) {
-            sendMessage(socket, { type: 'error', message: 'Need at least 2 players to start a multiplayer match!' });
+            sendMessage(socket, { type: 'error', message: 'Need at least 2 players or AI bots to start a match!' });
             return;
           }
 
-          // Reset scores, spawn items and start countdown
+          // Reset scores, spawn items and start countdown safely
           room.winnerId = null;
+          room.loserId = null;
           room.powerUps = [];
           
+          const walls = MAP_WALLS[room.config.map] || [];
           for (const pid in room.players) {
             const p = room.players[pid];
-            p.x = Math.random() * (MAP_WIDTH - 200) + 100;
-            p.y = Math.random() * (MAP_HEIGHT - 200) + 100;
+            const spawnPos = getSafeSpawnPosition(walls);
+            p.x = spawnPos.x;
+            p.y = spawnPos.y;
+            p.vx = 0;
+            p.vy = 0;
             p.isAlive = true;
             p.score = 0;
             p.isIt = false;
@@ -566,6 +830,7 @@ io.on('connection', (socket) => {
 
           room.status = 'lobby';
           room.winnerId = null;
+          room.loserId = null;
           room.powerUps = [];
 
           // Clean up running loops so they don't leak or conflict
