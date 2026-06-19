@@ -55,11 +55,18 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
       const dx = playerPosRef.current.x - localPlayer.x;
       const dy = playerPosRef.current.y - localPlayer.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (room.status !== 'playing' || dist > 35) {
+      
+      // Snap position if room is not playing, player is dead/respawned, or there is a major teleport (dist > 140)
+      if (room.status !== 'playing' || !localPlayer.isAlive || dist > 140) {
         playerPosRef.current = { x: localPlayer.x, y: localPlayer.y };
       }
     }
-  }, [room, personalId]);
+  }, [
+    room.status,
+    personalId,
+    room.players?.[personalId]?.isAlive,
+    room.players?.[personalId]?.lastTeleportTime
+  ]);
 
   // Set keyboard listeners
   useEffect(() => {
@@ -211,28 +218,11 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
       // 4. DRAW GRAPHICS FOR THE SCREEN WITH 3D PERSPECTIVE PROJECTION
       ctx.clearRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
-      // Define 3D projection mathematical system
+      // Define 3D projection mathematical system -> Optimized to a beautiful flat surface!
+      // Here, the ground coordinate is mapped 1:1 to create a perfectly flat play surface.
+      // We keep a gentle, gorgeous vertical elevation offset for wz (objects/players/walls height) to create pop-up visual height (classic retro feel) without tilting the ground!
       const project = (wx: number, wy: number, wz: number = 0) => {
-        const cx = wx - MAP_WIDTH / 2;
-        const cy = wy - MAP_HEIGHT / 2;
-
-        const tiltAngle = 36 * Math.PI / 180; // beautiful 36 deg tilt
-        const cosT = Math.cos(tiltAngle);
-        const sinT = Math.sin(tiltAngle);
-
-        const xScaled = cx * 0.82;
-        const yScaled = cy * 0.65;
-
-        const rotY = yScaled * cosT - wz * sinT;
-        const rotZ = yScaled * sinT + wz * cosT;
-
-        const D = 550;
-        const perspectiveScale = D / (D + rotZ * 0.55);
-
-        const screenX = MAP_WIDTH / 2 + xScaled * perspectiveScale;
-        const screenY = MAP_HEIGHT / 2 + 35 + rotY * perspectiveScale;
-
-        return { x: screenX, y: screenY, scale: perspectiveScale };
+        return { x: wx, y: wy - wz * 0.72, scale: 1.0 };
       };
 
       // 3D Extrusion Solid Slabs Generator for walls
@@ -1443,22 +1433,80 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         }
       });
 
-      // 8. Draw Gentle Sparkling Falling Snow Particles
-      ctx.fillStyle = '#FFFFFF';
-      const snowCount = 42;
-      for (let i = 0; i < snowCount; i++) {
-        // Deterministic placement using pseudo-random seeds
-        const seedX = (i * 7919) % MAP_WIDTH;
-        const seedSpeed = 1 + (i % 3) * 0.5;
-        const timeOffset = (Date.now() / 15) * seedSpeed;
-        
-        const sx = (seedX + Math.sin(Date.now() / 1000 + i) * 20) % MAP_WIDTH;
-        const sy = (timeOffset + (i * 17)) % MAP_HEIGHT;
-        const sz = 1.2 + (i % 4) * 0.6; // random snowflake size
-        
-        ctx.beginPath();
-        ctx.arc(sx, sy, sz, 0, Math.PI * 2);
-        ctx.fill();
+      // 8. Draw Gentle Map-specific Atmospheric Particles
+      if (activeMap === 'blocks') {
+        // SNOW PARTICLES (Winter)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        const snowCount = 42;
+        for (let i = 0; i < snowCount; i++) {
+          const seedX = (i * 7919) % MAP_WIDTH;
+          const seedSpeed = 1 + (i % 3) * 0.5;
+          const timeOffset = (Date.now() / 15) * seedSpeed;
+          
+          const sx = (seedX + Math.sin(Date.now() / 1000 + i) * 20) % MAP_WIDTH;
+          const sy = (timeOffset + (i * 17)) % MAP_HEIGHT;
+          const sz = 1.2 + (i % 4) * 0.6;
+          
+          ctx.beginPath();
+          ctx.arc(sx, sy, sz, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (activeMap === 'open') {
+        // CHERRY BLOSSOM PETALS / NATURE FLURRY (Summer Garden)
+        ctx.fillStyle = 'rgba(244, 143, 177, 0.75)'; // Soft pink petals
+        const petalCount = 24;
+        for (let i = 0; i < petalCount; i++) {
+          const seedX = (i * 7919) % MAP_WIDTH;
+          const seedSpeed = 0.6 + (i % 3) * 0.3;
+          const timeOffset = (Date.now() / 24) * seedSpeed;
+          
+          // drift diagonally (wind blowing)
+          const sx = (seedX + (Date.now() / 32) * 0.4 + Math.sin(Date.now() / 1500 + i) * 35) % MAP_WIDTH;
+          const sy = (timeOffset + (i * 28)) % MAP_HEIGHT;
+          const sz = 2.0 + (i % 3) * 1.2;
+          
+          ctx.beginPath();
+          ctx.ellipse(sx, sy, sz, sz * 0.55, 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (activeMap === 'maze') {
+        // GOLDEN SAND DUST (Egyptian Desert)
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.55)'; // Glowing amber sand grains
+        const sandCount = 38;
+        for (let i = 0; i < sandCount; i++) {
+          const seedX = (i * 7919) % MAP_WIDTH;
+          const seedSpeed = 1.2 + (i % 4) * 0.6;
+          const timeOffset = (Date.now() / 12) * seedSpeed;
+          
+          // fast horizontal wind-blown sand
+          const sx = (seedX - (Date.now() / 8) * seedSpeed) % MAP_WIDTH;
+          const sy = (timeOffset + (i * 20)) % MAP_HEIGHT;
+          const adjSx = sx < 0 ? MAP_WIDTH + (sx % MAP_WIDTH) : sx % MAP_WIDTH; // handle wrap around safely
+          const sz = 1.0 + (i % 3) * 0.6;
+          
+          ctx.beginPath();
+          ctx.arc(adjSx, sy, sz, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (activeMap === 'arena') {
+        // SPARKLING SUNBEAMS / SEA MIST (Beach)
+        ctx.fillStyle = 'rgba(254, 240, 138, 0.45)'; // Warm yellow-white sparkles
+        const sunCount = 18;
+        for (let i = 0; i < sunCount; i++) {
+          const seedX = (i * 7919) % MAP_WIDTH;
+          const seedY = (i * 31) % MAP_HEIGHT;
+          
+          // shimmering sparkle
+          const sx = seedX;
+          const sy = seedY + Math.sin(Date.now() / 600 + i) * 6;
+          const sz = (1.5 + (i % 3) * 1.5) * (0.6 + Math.sin(Date.now() / 300 + i) * 0.4); // shiny pulse
+          
+          if (sz > 0.2) {
+            ctx.beginPath();
+            ctx.arc(sx, sy, sz, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
       }
 
       // Special Match Starting Overlay
