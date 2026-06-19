@@ -312,17 +312,57 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.stroke();
       };
 
-      // 1. Draw Space background starry grid field
-      ctx.fillStyle = '#020617'; // deepest space dark blue
+      // 1. Draw Beautiful Pastel Winter Sky Gradient (matching user's screenshot details!)
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, MAP_HEIGHT);
+      skyGrad.addColorStop(0, '#93C5FD'); // light winter blue
+      skyGrad.addColorStop(0.4, '#C7D2FE'); // lavender slate
+      skyGrad.addColorStop(1, '#EEF2F6'); // Arctic white horizon
+      ctx.fillStyle = skyGrad;
       ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
-      // 2. Draw 3D Arena Ground Floor plate
+      // Draw background layered hills / mountains in Cozy pastel purple/white
+      const drawHills = (color: string, offsetMultiplier: number, heightAmp: number) => {
+        const timeOffset = (Date.now() / 5000) * offsetMultiplier;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(0, MAP_HEIGHT);
+        for (let x = 0; x <= MAP_WIDTH; x += 30) {
+          const y = MAP_HEIGHT / 2 + 50 + Math.sin(x * 0.005 + timeOffset) * heightAmp + Math.cos(x * 0.012) * 15;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(MAP_WIDTH, MAP_HEIGHT);
+        ctx.closePath();
+        ctx.fill();
+      };
+      // Far snowy mountains
+      drawHills('#C7D2FE', 0.15, 35);
+      // Mid snowy mounds with pine silhouettes or details
+      drawHills('#E0E7FF', -0.22, 22);
+
+      // Draw drifting soft fluffy background clouds
+      const cloudTime = Date.now() / 15000;
+      const clouds = [
+        { cx: (cloudTime * 45) % (MAP_WIDTH + 180) - 90, cy: 75, scale: 0.95 },
+        { cx: (cloudTime * 25 + 450) % (MAP_WIDTH + 180) - 90, cy: 125, scale: 1.15 },
+        { cx: (cloudTime * 32 + 200) % (MAP_WIDTH + 180) - 90, cy: 55, scale: 0.8 }
+      ];
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+      clouds.forEach(cl => {
+        ctx.beginPath();
+        ctx.arc(cl.cx, cl.cy, 22 * cl.scale, 0, Math.PI * 2);
+        ctx.arc(cl.cx + 18 * cl.scale, cl.cy - 12 * cl.scale, 28 * cl.scale, 0, Math.PI * 2);
+        ctx.arc(cl.cx + 42 * cl.scale, cl.cy, 20 * cl.scale, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.fill();
+      });
+
+      // 2. Draw 3D Arena Ground Floor plate covered in beautiful snow / frosting
       const fl1 = project(0, 0, 0);
       const fl2 = project(MAP_WIDTH, 0, 0);
       const fl3 = project(MAP_WIDTH, MAP_HEIGHT, 0);
       const fl4 = project(0, MAP_HEIGHT, 0);
 
-      ctx.fillStyle = '#0F172A'; // slate-900 floor
+      ctx.fillStyle = '#E2E8F0'; // clean Arctic snowy base plate
       ctx.beginPath();
       ctx.moveTo(fl1.x, fl1.y);
       ctx.lineTo(fl2.x, fl2.y);
@@ -331,13 +371,13 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
       ctx.closePath();
       ctx.fill();
 
-      // Neon glowing platform outline
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)'; // cyan sky glow rim
-      ctx.lineWidth = 3;
+      // Soft icy teal-blue glowing plate outline
+      ctx.strokeStyle = 'rgba(147, 197, 253, 0.6)'; 
+      ctx.lineWidth = 4;
       ctx.stroke();
 
-      // 3. Draw Beautiful receding Grid Lines on the floor plate
-      ctx.strokeStyle = '#1e293b';
+      // 3. Draw Beautiful receding Grid Lines on the floor plate (for positioning feedback)
+      ctx.strokeStyle = '#CBD5E1';
       ctx.lineWidth = 1;
       const gridSizeRef = 40;
       for (let x = 0; x <= MAP_WIDTH; x += gridSizeRef) {
@@ -357,21 +397,233 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.stroke();
       }
 
-      // 4. Draw 3D Platform Rim / Outer Boundary Walls
-      // This builds real thick physical borders on our platform
-      const borderH = 20;
-      const bcTop = '#334155';
-      const bcSide = '#1E293B';
-      draw3DBox(-8, -8, MAP_WIDTH + 16, 8, borderH, bcTop, bcSide); // Top wall
-      draw3DBox(-8, MAP_HEIGHT, MAP_WIDTH + 16, 8, borderH, bcTop, bcSide); // Bottom wall
-      draw3DBox(-8, 0, 8, MAP_HEIGHT, borderH, bcTop, bcSide); // Left wall
-      draw3DBox(MAP_WIDTH, 0, 8, MAP_HEIGHT, borderH, bcTop, bcSide); // Right wall
+      // 4. Draw 3D Platform Rim / Outer Boundary Walls with fluffy snow tops
+      const borderH = 22;
+      const snowTop = '#FFFFFF';
+      const icyRock = '#312E81';
+      draw3DBox(-8, -8, MAP_WIDTH + 16, 8, borderH, snowTop, icyRock); // Top wall
+      draw3DBox(-8, MAP_HEIGHT, MAP_WIDTH + 16, 8, borderH, snowTop, icyRock); // Bottom wall
+      draw3DBox(-8, 0, 8, MAP_HEIGHT, borderH, snowTop, icyRock); // Left wall
+      draw3DBox(MAP_WIDTH, 0, 8, MAP_HEIGHT, borderH, snowTop, icyRock); // Right wall
 
-      // 5. Draw 3D Walls for the active map configuration
+      // 5. Draw 3D Walls for the active map configuration with heavy snow caps
       walls.forEach(wall => {
-        // High-tech slate block with illuminated cyan/slate highlight rims
-        draw3DBox(wall.x, wall.y, wall.w, wall.h, 34, '#475569', '#334155');
+        // High-tech slate block with illuminated white/indigo highlight rims
+        draw3DBox(wall.x, wall.y, wall.w, wall.h, 36, '#FFFFFF', '#4338CA');
       });
+
+      // 3D Pine Tree Generator
+      const draw3DPineTree = (wx: number, wy: number) => {
+        const trunkProj = project(wx, wy, 0);
+        const leaf1Proj = project(wx, wy, 12);
+        const leaf2Proj = project(wx, wy, 26);
+        const leaf3Proj = project(wx, wy, 40);
+
+        const sc = trunkProj.scale;
+
+        // Draw Trunk
+        ctx.fillStyle = '#78350F'; // solid brown
+        ctx.beginPath();
+        ctx.ellipse(trunkProj.x, trunkProj.y, 4 * sc, 2 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(trunkProj.x - 3 * sc, trunkProj.y - 12 * sc, 6 * sc, 12 * sc);
+
+        // Cascade Layer 1 (bottom)
+        ctx.fillStyle = '#065F46'; // forest green
+        ctx.beginPath();
+        ctx.moveTo(leaf1Proj.x - 22 * sc, leaf1Proj.y);
+        ctx.lineTo(leaf1Proj.x + 22 * sc, leaf1Proj.y);
+        ctx.lineTo(leaf2Proj.x, leaf2Proj.y - 4 * sc);
+        ctx.closePath();
+        ctx.fill();
+
+        // snow lip layer 1
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.moveTo(leaf1Proj.x - 22 * sc, leaf1Proj.y);
+        ctx.lineTo(leaf1Proj.x + 22 * sc, leaf1Proj.y);
+        ctx.lineTo(leaf1Proj.x + 16 * sc, leaf1Proj.y - 3 * sc);
+        ctx.lineTo(leaf1Proj.x - 16 * sc, leaf1Proj.y - 3 * sc);
+        ctx.closePath();
+        ctx.fill();
+
+        // Cascade Layer 2 (middle)
+        ctx.fillStyle = '#047857';
+        ctx.beginPath();
+        ctx.moveTo(leaf2Proj.x - 17 * sc, leaf2Proj.y);
+        ctx.lineTo(leaf2Proj.x + 17 * sc, leaf2Proj.y);
+        ctx.lineTo(leaf3Proj.x, leaf3Proj.y - 3 * sc);
+        ctx.closePath();
+        ctx.fill();
+
+        // snow lip layer 2
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.moveTo(leaf2Proj.x - 17 * sc, leaf2Proj.y);
+        ctx.lineTo(leaf2Proj.x + 17 * sc, leaf2Proj.y);
+        ctx.lineTo(leaf2Proj.x + 12 * sc, leaf2Proj.y - 3 * sc);
+        ctx.lineTo(leaf2Proj.x - 12 * sc, leaf2Proj.y - 3 * sc);
+        ctx.closePath();
+        ctx.fill();
+
+        // Cascade Layer 3 (top)
+        ctx.fillStyle = '#059669';
+        ctx.beginPath();
+        ctx.moveTo(leaf3Proj.x - 11 * sc, leaf3Proj.y);
+        ctx.lineTo(leaf3Proj.x + 11 * sc, leaf3Proj.y);
+        const topProj = project(wx, wy, 52);
+        ctx.lineTo(topProj.x, topProj.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // tree top snowcap
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.moveTo(leaf3Proj.x - 5 * sc, leaf3Proj.y + 2 * sc);
+        ctx.lineTo(topProj.x, topProj.y);
+        ctx.lineTo(leaf3Proj.x + 5 * sc, leaf3Proj.y + 2 * sc);
+        ctx.closePath();
+        ctx.fill();
+      };
+
+      // 3D Cozy Snowman Generator
+      const draw3DSnowman = (wx: number, wy: number) => {
+        const bottomProj = project(wx, wy, 0);
+        const bodyProj = project(wx, wy, 10);
+        const headProj = project(wx, wy, 24);
+        const sc = bottomProj.scale;
+
+        // Ground shadow
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.2)';
+        ctx.beginPath();
+        ctx.ellipse(bottomProj.x, bottomProj.y, 14 * sc, 6 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Bottom snow ball
+        ctx.fillStyle = '#F8FAFC';
+        ctx.strokeStyle = '#CBD5E1';
+        ctx.lineWidth = 1 * sc;
+        ctx.beginPath();
+        ctx.arc(bodyProj.x, bodyProj.y, 11 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Buttons
+        ctx.fillStyle = '#1E293B';
+        ctx.beginPath();
+        ctx.arc(bodyProj.x, bodyProj.y - 1 * sc, 2 * sc, 0, Math.PI * 2);
+        ctx.arc(bodyProj.x, bodyProj.y + 4 * sc, 2 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Head snow ball
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(headProj.x, headProj.y, 7.5 * sc, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Eyes
+        ctx.fillStyle = '#0F172A';
+        ctx.beginPath();
+        ctx.arc(headProj.x - 2 * sc, headProj.y - 1 * sc, 1 * sc, 0, Math.PI * 2);
+        ctx.arc(headProj.x + 2 * sc, headProj.y - 1 * sc, 1 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Carrot nose
+        ctx.fillStyle = '#EA580C'; // orange
+        ctx.beginPath();
+        ctx.moveTo(headProj.x, headProj.y);
+        ctx.lineTo(headProj.x + 5 * sc, headProj.y + 1 * sc);
+        ctx.lineTo(headProj.x, headProj.y + 2 * sc);
+        ctx.closePath();
+        ctx.fill();
+
+        // Red cozy scarf (wrapped around neck area)
+        ctx.fillStyle = '#EF4444';
+        ctx.beginPath();
+        ctx.ellipse(headProj.x, headProj.y + 6 * sc, 7.5 * sc, 3 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Scarf trailing tail
+        ctx.beginPath();
+        ctx.moveTo(headProj.x + 3 * sc, headProj.y + 6 * sc);
+        ctx.lineTo(headProj.x + 7 * sc, headProj.y + 13 * sc);
+        ctx.lineTo(headProj.x + 4 * sc, headProj.y + 14 * sc);
+        ctx.lineTo(headProj.x + 1 * sc, headProj.y + 7 * sc);
+        ctx.closePath();
+        ctx.fill();
+
+        // Black tiny top hat (classic snowman hat!)
+        ctx.fillStyle = '#1E293B';
+        // Brim
+        ctx.fillRect(headProj.x - 7 * sc, headProj.y - 9 * sc, 14 * sc, 2.5 * sc);
+        // Base
+        ctx.fillRect(headProj.x - 4 * sc, headProj.y - 17 * sc, 8 * sc, 8 * sc);
+        // Red ribbons around hat
+        ctx.fillStyle = '#EF4444';
+        ctx.fillRect(headProj.x - 4 * sc, headProj.y - 11 * sc, 8 * sc, 2 * sc);
+      };
+
+      // 3D Candy Cane Generator
+      const draw3DCandyCane = (wx: number, wy: number) => {
+        const baseProj = project(wx, wy, 0);
+        const sc = baseProj.scale;
+
+        // Render curving segmented path using simple projection points
+        ctx.lineWidth = 5 * sc;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        // Draw background shadow
+        ctx.strokeStyle = 'rgba(15, 23, 42, 0.15)';
+        ctx.beginPath();
+        for (let hz = 0; hz <= 36; hz += 4) {
+          let rx = wx;
+          if (hz > 24) {
+            const ratio = (hz - 24) / 12;
+            rx += Math.sin(ratio * Math.PI) * 14;
+          }
+          const pt = project(rx, wy, hz);
+          if (hz === 0) ctx.moveTo(pt.x + 2 * sc, pt.y + 3 * sc);
+          else ctx.lineTo(pt.x + 2 * sc, pt.y + 3 * sc);
+        }
+        ctx.stroke();
+
+        // Draw standard stylized stripes using a loop
+        for (let hz = 0; hz <= 36; hz += 2) {
+          let rx = wx;
+          if (hz > 24) {
+            const ratio = (hz - 24) / 12;
+            rx += Math.sin(ratio * Math.PI) * 14;
+          }
+          const pt1 = project(rx, wy, hz);
+          
+          let rxNext = wx;
+          if (hz + 2 > 24) {
+            const ratio = (hz + 2 - 24) / 12;
+            rxNext += Math.sin(ratio * Math.PI) * 14;
+          }
+          const pt2 = project(rxNext, wy, hz + 2);
+
+          // alternating red and white stripes
+          ctx.strokeStyle = (Math.floor(hz / 4) % 2 === 0) ? '#EF4444' : '#F8FAFC';
+          ctx.beginPath();
+          ctx.moveTo(pt1.x, pt1.y);
+          ctx.lineTo(pt2.x, pt2.y);
+          ctx.stroke();
+        }
+      };
+
+      // Draw static cozy winter props around the corners and margins so they frame the game nicely
+      draw3DPineTree(42, 42);
+      draw3DPineTree(MAP_WIDTH - 42, 42);
+      draw3DPineTree(42, MAP_HEIGHT - 42);
+      draw3DPineTree(MAP_WIDTH - 42, MAP_HEIGHT - 42);
+
+      draw3DSnowman(110, 48);
+      draw3DCandyCane(MAP_WIDTH - 110, 48);
+      draw3DSnowman(MAP_WIDTH - 110, MAP_HEIGHT - 48);
+      draw3DCandyCane(110, MAP_HEIGHT - 48);
 
       // 6. Draw 3D portals with beautiful swirling vortex animation
       const renderPortal = (pctx: CanvasRenderingContext2D, px: number, py: number, label: string) => {
@@ -506,8 +758,110 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
           ctx.stroke();
         }
 
-        // Shaded 3D Sphere Player Core
+        // Calculate movement or direction vector for trailing ribbons
+        const vxRib = player.vx !== undefined ? player.vx : 0;
+        const vyRib = player.vy !== undefined ? player.vy : 0;
+        let flowDx = -vxRib;
+        let flowDy = -vyRib;
+        const flowSpeelen = Math.sqrt(flowDx * flowDx + flowDy * flowDy);
+        if (flowSpeelen < 0.1) {
+          flowDx = -1.2;
+          flowDy = 0.3;
+        } else {
+          flowDx = (flowDx / flowSpeelen) * 1.5;
+          flowDy = (flowDy / flowSpeelen) * 1.5;
+        }
+
+        // Draw trailing ninja ribbons (flapping dynamically)
+        const timeVal = Date.now() / 130 + pBottom.x * 0.05;
+        const ribbonCol = isFrozen ? '#93C5FD' : player.color;
+        ctx.strokeStyle = ribbonCol;
+        ctx.lineWidth = 3.5 * pBody.scale;
+        ctx.lineCap = 'round';
+
+        // Ribbon 1
+        ctx.beginPath();
+        ctx.moveTo(pBody.x, pBody.y + 1 * pBody.scale);
+        const cp1x = pBody.x + flowDx * 15 * pBody.scale;
+        const cp1y = pBody.y + flowDy * 10 * pBody.scale + Math.sin(timeVal) * 5 * pBody.scale;
+        const end1x = pBody.x + flowDx * 28 * pBody.scale;
+        const end1y = pBody.y + flowDy * 14 * pBody.scale + Math.sin(timeVal) * 7 * pBody.scale;
+        ctx.quadraticCurveTo(cp1x, cp1y, end1x, end1y);
+        ctx.stroke();
+
+        // Ribbon 2 (phase desynchronized)
+        ctx.beginPath();
+        ctx.moveTo(pBody.x, pBody.y + 3 * pBody.scale);
+        const cp2x = pBody.x + flowDx * 13 * pBody.scale;
+        const cp2y = pBody.y + flowDy * 7 * pBody.scale + Math.cos(timeVal * 1.1) * 4 * pBody.scale;
+        const end2x = pBody.x + flowDx * 24 * pBody.scale;
+        const end2y = pBody.y + flowDy * 11 * pBody.scale + Math.cos(timeVal * 1.1) * 6 * pBody.scale;
+        ctx.quadraticCurveTo(cp2x, cp2y, end2x, end2y);
+        ctx.stroke();
+
+        // Setup base colors
+        let coreColor = isFrozen ? '#93C5FD' : player.color;
         const rSphere = PLAYER_RADIUS * pBody.scale;
+
+        // Draw adorable 3D cat ears
+        ctx.fillStyle = coreColor;
+        ctx.strokeStyle = player.id === personalId ? '#FFFFFF' : 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 1 * pBody.scale;
+
+        // Left ear
+        ctx.beginPath();
+        const earAngleLeft = 2.4; // radian top left
+        const earX1 = pBody.x + Math.cos(earAngleLeft - 0.28) * rSphere;
+        const earY1 = pBody.y - Math.sin(earAngleLeft - 0.28) * rSphere;
+        const earX2 = pBody.x + Math.cos(earAngleLeft + 0.28) * rSphere;
+        const earY2 = pBody.y - Math.sin(earAngleLeft + 0.28) * rSphere;
+        const earTpX = pBody.x + Math.cos(earAngleLeft) * (rSphere + 6 * pBody.scale);
+        const earTpY = pBody.y - Math.sin(earAngleLeft) * (rSphere + 6.5 * pBody.scale);
+
+        ctx.moveTo(earX1, earY1);
+        ctx.lineTo(earTpX, earTpY);
+        ctx.lineTo(earX2, earY2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Inner left ear peach flap
+        ctx.fillStyle = '#FDA4AF';
+        ctx.beginPath();
+        ctx.moveTo(earX1 + (earTpX - earX1)*0.24, earY1 + (earTpY - earY1)*0.24);
+        ctx.lineTo(earTpX - Math.cos(earAngleLeft)*1.2, earTpY + Math.sin(earAngleLeft)*1.2);
+        ctx.lineTo(earX2 + (earTpX - earX2)*0.24, earY2 + (earTpY - earY2)*0.24);
+        ctx.closePath();
+        ctx.fill();
+
+        // Right ear
+        ctx.fillStyle = coreColor;
+        ctx.beginPath();
+        const earAngleRight = 0.74; // radian top right
+        const earRX1 = pBody.x + Math.cos(earAngleRight - 0.28) * rSphere;
+        const earRY1 = pBody.y - Math.sin(earAngleRight - 0.28) * rSphere;
+        const earRX2 = pBody.x + Math.cos(earAngleRight + 0.28) * rSphere;
+        const earRY2 = pBody.y - Math.sin(earAngleRight + 0.28) * rSphere;
+        const earRTpX = pBody.x + Math.cos(earAngleRight) * (rSphere + 6 * pBody.scale);
+        const earRTpY = pBody.y - Math.sin(earAngleRight) * (rSphere + 6.5 * pBody.scale);
+
+        ctx.moveTo(earRX1, earRY1);
+        ctx.lineTo(earRTpX, earRTpY);
+        ctx.lineTo(earRX2, earRY2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Inner right ear peach flap
+        ctx.fillStyle = '#FDA4AF';
+        ctx.beginPath();
+        ctx.moveTo(earRX1 + (earRTpX - earRX1)*0.24, earRY1 + (earRTpY - earRY1)*0.24);
+        ctx.lineTo(earRTpX - Math.cos(earAngleRight)*1.2, earRTpY + Math.sin(earAngleRight)*1.2);
+        ctx.lineTo(earRX2 + (earRTpX - earRX2)*0.24, earRY2 + (earRTpY - earRX2)*0.24);
+        ctx.closePath();
+        ctx.fill();
+
+        // Shaded 3D Sphere Player Core Body
         ctx.beginPath();
         ctx.arc(pBody.x, pBody.y, rSphere, 0, Math.PI * 2);
         
@@ -520,16 +874,52 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
           rSphere
         );
 
-        let coreColor = isFrozen ? '#93C5FD' : player.color;
-        grad.addColorStop(0, '#FFFFFF'); // dynamic glossy reflection highlight
+        grad.addColorStop(0, '#FFFFFF'); // glossy specular highlight
         grad.addColorStop(0.35, coreColor);
-        grad.addColorStop(1, shadeColor(coreColor, -35)); // bottom right shadow wrap
+        grad.addColorStop(1, shadeColor(coreColor, -35)); // bottom right wrap shadow
 
         ctx.fillStyle = grad;
         ctx.fill();
         
         ctx.strokeStyle = player.id === personalId ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)';
         ctx.lineWidth = player.id === personalId ? 2.5 : 1.2;
+        ctx.stroke();
+
+        // Draw Adorable Whiskers and blushing cheeks
+        ctx.fillStyle = 'rgba(253, 164, 175, 0.7)'; // soft blushing cheeks
+        ctx.beginPath();
+        ctx.arc(pBody.x - rSphere * 0.45, pBody.y + rSphere * 0.15, rSphere * 0.18, 0, Math.PI * 2);
+        ctx.arc(pBody.x + rSphere * 0.45, pBody.y + rSphere * 0.15, rSphere * 0.18, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Whiskers outline
+        ctx.strokeStyle = 'rgba(15, 23, 42, 0.45)';
+        ctx.lineWidth = 1 * pBody.scale;
+        ctx.beginPath();
+        // Left cheeks whiskers
+        ctx.moveTo(pBody.x - rSphere * 0.48, pBody.y + rSphere * 0.12);
+        ctx.lineTo(pBody.x - rSphere * 0.85, pBody.y + rSphere * 0.1);
+        ctx.moveTo(pBody.x - rSphere * 0.48, pBody.y + rSphere * 0.19);
+        ctx.lineTo(pBody.x - rSphere * 0.82, pBody.y + rSphere * 0.25);
+        // Right cheeks whiskers
+        ctx.moveTo(pBody.x + rSphere * 0.48, pBody.y + rSphere * 0.12);
+        ctx.lineTo(pBody.x + rSphere * 0.85, pBody.y + rSphere * 0.12);
+        ctx.moveTo(pBody.x + rSphere * 0.48, pBody.y + rSphere * 0.19);
+        ctx.lineTo(pBody.x + rSphere * 0.82, pBody.y + rSphere * 0.25);
+        ctx.stroke();
+
+        // Ninja Headband Strap wrapping across forehead
+        ctx.fillStyle = '#111827'; // solid deep dark fabric
+        ctx.fillRect(pBody.x - rSphere * 0.93, pBody.y - rSphere * 0.35, rSphere * 1.86, rSphere * 0.38);
+
+        // Cozy curved focused ninja cat eyes inside the strap fabric
+        ctx.lineWidth = 1.6 * pBody.scale;
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.beginPath();
+        // Left cute eye arc (sleeping happy style "^ _ ^")
+        ctx.arc(pBody.x - rSphere * 0.32, pBody.y - rSphere * 0.12, rSphere * 0.1, Math.PI, 0, false);
+        // Right cute eye arc
+        ctx.arc(pBody.x + rSphere * 0.32, pBody.y - rSphere * 0.12, rSphere * 0.1, Math.PI, 0, false);
         ctx.stroke();
 
         // Draw speed motion trails if speed boosted
@@ -632,6 +1022,24 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
           ctx.fillText(player.emoji, emojiProj.x, emojiProj.y + floatOffset);
         }
       });
+
+      // 8. Draw Gentle Sparkling Falling Snow Particles
+      ctx.fillStyle = '#FFFFFF';
+      const snowCount = 42;
+      for (let i = 0; i < snowCount; i++) {
+        // Deterministic placement using pseudo-random seeds
+        const seedX = (i * 7919) % MAP_WIDTH;
+        const seedSpeed = 1 + (i % 3) * 0.5;
+        const timeOffset = (Date.now() / 15) * seedSpeed;
+        
+        const sx = (seedX + Math.sin(Date.now() / 1000 + i) * 20) % MAP_WIDTH;
+        const sy = (timeOffset + (i * 17)) % MAP_HEIGHT;
+        const sz = 1.2 + (i % 4) * 0.6; // random snowflake size
+        
+        ctx.beginPath();
+        ctx.arc(sx, sy, sz, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       // Special Match Starting Overlay
       if (room.status === 'countdown') {
