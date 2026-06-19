@@ -33,7 +33,15 @@ export const MAP_PORTALS: Record<'arena' | 'maze' | 'open' | 'blocks', Portal[]>
 export const MAP_WALLS: Record<'arena' | 'maze' | 'open' | 'blocks', Wall[]> = {
   open: [
     // Center pillar
-    { id: 'open_center', x: MAP_WIDTH / 2 - 40, y: MAP_HEIGHT / 2 - 40, w: 80, h: 80 }
+    { id: 'open_center', x: MAP_WIDTH / 2 - 40, y: MAP_HEIGHT / 2 - 40, w: 80, h: 80 },
+    // Outer tactical bumpers
+    { id: 'open_lt', x: 220, y: 150, w: 80, h: 40 },
+    { id: 'open_rt', x: MAP_WIDTH - 300, y: 150, w: 80, h: 40 },
+    { id: 'open_lb', x: 220, y: MAP_HEIGHT - 190, w: 80, h: 40 },
+    { id: 'open_rb', x: MAP_WIDTH - 300, y: MAP_HEIGHT - 190, w: 80, h: 40 },
+    // Upper and lower barriers
+    { id: 'open_top', x: MAP_WIDTH / 2 - 120, y: 70, w: 240, h: 30 },
+    { id: 'open_bottom', x: MAP_WIDTH / 2 - 120, y: MAP_HEIGHT - 100, w: 240, h: 30 }
   ],
   arena: [
     // Central split barriers
@@ -46,7 +54,12 @@ export const MAP_WALLS: Record<'arena' | 'maze' | 'open' | 'blocks', Wall[]> = {
     { id: 'arena_corner_tl', x: 120, y: 100, w: 30, h: 100 },
     { id: 'arena_corner_tr', x: MAP_WIDTH - 150, y: 100, w: 30, h: 100 },
     { id: 'arena_corner_bl', x: 120, y: MAP_HEIGHT - 200, w: 30, h: 100 },
-    { id: 'arena_corner_br', x: MAP_WIDTH - 150, y: MAP_HEIGHT - 200, w: 30, h: 100 }
+    { id: 'arena_corner_br', x: MAP_WIDTH - 150, y: MAP_HEIGHT - 200, w: 30, h: 100 },
+    // Additional reef blocks for more high-intensity tactical spots
+    { id: 'arena_reefs_tl', x: 280, y: 130, w: 40, h: 120 },
+    { id: 'arena_reefs_tr', x: MAP_WIDTH - 320, y: 130, w: 40, h: 120 },
+    { id: 'arena_reefs_bl', x: 280, y: 350, w: 40, h: 120 },
+    { id: 'arena_reefs_br', x: MAP_WIDTH - 320, y: 350, w: 40, h: 120 }
   ],
   maze: [
     // Outer border blocks and symmetric walls
@@ -69,7 +82,17 @@ export const MAP_WALLS: Record<'arena' | 'maze' | 'open' | 'blocks', Wall[]> = {
     // Middle horizontal splitter
     { id: 'maze_mh1', x: MAP_WIDTH / 2 - 120, y: MAP_HEIGHT / 2 - 15, w: 240, h: 30 },
     { id: 'maze_mh2', x: MAP_WIDTH / 2 - 15, y: 100, w: 30, h: 80 },
-    { id: 'maze_mh3', x: MAP_WIDTH / 2 - 15, y: MAP_HEIGHT - 180, w: 30, h: 80 }
+    { id: 'maze_mh3', x: MAP_WIDTH / 2 - 15, y: MAP_HEIGHT - 180, w: 30, h: 80 },
+
+    // Additional Egyptian ruins blocks to make it a deep labyrinth
+    { id: 'maze_extra_l1', x: 200, y: 180, w: 100, h: 30 },
+    { id: 'maze_extra_r1', x: MAP_WIDTH - 300, y: 180, w: 100, h: 30 },
+    { id: 'maze_extra_l2', x: 200, y: MAP_HEIGHT - 210, w: 100, h: 30 },
+    { id: 'maze_extra_r2', x: MAP_WIDTH - 300, y: MAP_HEIGHT - 210, w: 100, h: 30 },
+    { id: 'maze_extra_mid_l', x: MAP_WIDTH / 2 - 120, y: 140, w: 80, h: 30 },
+    { id: 'maze_extra_mid_r', x: MAP_WIDTH / 2 + 40, y: 140, w: 80, h: 30 },
+    { id: 'maze_extra_mid_bl', x: MAP_WIDTH / 2 - 120, y: MAP_HEIGHT - 170, w: 80, h: 30 },
+    { id: 'maze_extra_mid_br', x: MAP_WIDTH / 2 + 40, y: MAP_HEIGHT - 170, w: 80, h: 30 }
   ],
   blocks: [
     // Columns and rows grid layout
@@ -83,7 +106,22 @@ export const MAP_WALLS: Record<'arena' | 'maze' | 'open' | 'blocks', Wall[]> = {
     
     // Small side tabs
     { id: 'b_l', x: 40, y: MAP_HEIGHT / 2 - 40, w: 80, h: 30 },
-    { id: 'b_r', x: MAP_WIDTH - 120, y: MAP_HEIGHT / 2 - 40, w: 80, h: 30 }
+    { id: 'b_r', x: MAP_WIDTH - 120, y: MAP_HEIGHT / 2 - 40, w: 80, h: 30 },
+
+    // Middle core pillars in horizontal gaps
+    { id: 'b_mid_c', x: 410, y: 260, w: 80, h: 80 },
+    { id: 'b_mid_l', x: 150, y: 260, w: 80, h: 80 },
+    { id: 'b_mid_r', x: 670, y: 260, w: 80, h: 80 },
+
+    // Dynamic tiny connector stones
+    { id: 'b_cl_1', x: 285, y: 190, w: 40, h: 40 },
+    { id: 'b_cl_2', x: 285, y: 370, w: 40, h: 40 },
+    { id: 'b_cr_1', x: 575, y: 190, w: 40, h: 40 },
+    { id: 'b_cr_2', x: 575, y: 370, w: 40, h: 40 },
+
+    // Secondary diagonal corner pillars (avoiding top-left and bottom-right portals!)
+    { id: 'b_c_tr', x: MAP_WIDTH - 80, y: 40, w: 40, h: 40 },
+    { id: 'b_c_bl', x: 40, y: MAP_HEIGHT - 80, w: 40, h: 40 }
   ]
 };
 
