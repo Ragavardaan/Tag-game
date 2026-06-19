@@ -890,6 +890,223 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.stroke();
       };
 
+      // GARDEN CUSTOM GNOME doll generator (as attached is red conical hat, fat peach nose, white beard, dark jacket)
+      const draw3DGardenGnome = (wx: number, wy: number) => {
+        const base = project(wx, wy, 0);
+        const sc = base.scale;
+
+        // Ground shadow
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.2)';
+        ctx.beginPath();
+        ctx.ellipse(base.x, base.y, 14 * sc, 6 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 1. Gnome body / coat in deep blue as seen in typical garden gnomes
+        const bodyProj = project(wx, wy, 8);
+        ctx.fillStyle = '#1D4ED8'; // Royal blue jacket
+        ctx.beginPath();
+        ctx.ellipse(bodyProj.x, bodyProj.y, 10 * sc, 9 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. White beard covering chest
+        const beardProj = project(wx, wy, 14);
+        ctx.fillStyle = '#F8FAFC'; // Soft white beard
+        ctx.beginPath();
+        ctx.moveTo(beardProj.x - 7 * sc, beardProj.y);
+        ctx.quadraticCurveTo(beardProj.x, beardProj.y + 11 * sc, beardProj.x + 7 * sc, beardProj.y);
+        ctx.quadraticCurveTo(beardProj.x, beardProj.y - 1 * sc, beardProj.x - 7 * sc, beardProj.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // 3. Round chubby Peach Face
+        const faceProj = project(wx, wy, 18);
+        ctx.fillStyle = '#FED7AA'; // Peach skin
+        ctx.beginPath();
+        ctx.arc(faceProj.x, faceProj.y, 6.5 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Chubby blush cheeks
+        ctx.fillStyle = '#FCA5A5';
+        ctx.beginPath();
+        ctx.arc(faceProj.x - 3.5 * sc, faceProj.y + 1 * sc, 2 * sc, 0, Math.PI * 2);
+        ctx.arc(faceProj.x + 3.5 * sc, faceProj.y + 1 * sc, 2 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cute button nose
+        ctx.fillStyle = '#FDBA74';
+        ctx.beginPath();
+        ctx.arc(faceProj.x, faceProj.y, 2.2 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Squinty eyes
+        ctx.fillStyle = '#1E293B';
+        ctx.beginPath();
+        ctx.arc(faceProj.x - 2.2 * sc, faceProj.y - 1.2 * sc, 0.9 * sc, 0, Math.PI * 2);
+        ctx.arc(faceProj.x + 2.2 * sc, faceProj.y - 1.2 * sc, 0.9 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 4. Iconic tall pointed conical RED Gnome Hat (as attached in image)
+        const hatBaseProj = project(wx, wy, 21);
+        const hatTipProj = project(wx, wy, 39);
+        ctx.fillStyle = '#DC2626'; // Bright Red!
+        ctx.beginPath();
+        ctx.moveTo(hatBaseProj.x - 7.5 * sc, hatBaseProj.y);
+        ctx.quadraticCurveTo(hatBaseProj.x + 1 * sc, hatTipProj.y + 5 * sc, hatTipProj.x + 2 * sc, hatTipProj.y);
+        ctx.quadraticCurveTo(hatBaseProj.x + 5 * sc, hatBaseProj.y - 2 * sc, hatBaseProj.x + 7.5 * sc, hatBaseProj.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // White hat brim fold
+        ctx.fillStyle = '#F1F5F9';
+        ctx.beginPath();
+        ctx.ellipse(hatBaseProj.x, hatBaseProj.y, 8 * sc, 2 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Tiny lute / gold accordian tool instrument as held in the photo!
+        const toolProj = project(wx, wy, 7);
+        ctx.fillStyle = '#F59E0B'; // Golden highlight
+        ctx.fillRect(toolProj.x - 4 * sc, toolProj.y + 2 * sc, 8 * sc, 4 * sc);
+        ctx.fillStyle = '#334155'; // Accordion folds
+        ctx.fillRect(toolProj.x - 2 * sc, toolProj.y + 2 * sc, 1.2 * sc, 4 * sc);
+        ctx.fillRect(toolProj.x + 1 * sc, toolProj.y + 2 * sc, 1.2 * sc, 4 * sc);
+      };
+
+      // DESERT MUMMY DOLL generator
+      const draw3DMummyDoll = (wx: number, wy: number) => {
+        const base = project(wx, wy, 0);
+        const sc = base.scale;
+
+        // Ground shadow
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.22)';
+        ctx.beginPath();
+        ctx.ellipse(base.x, base.y, 14 * sc, 6 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 1. Mummy cylinder body
+        const midProj = project(wx, wy, 12);
+        ctx.fillStyle = '#EFEAE2'; // Linen beige white
+        ctx.beginPath();
+        ctx.ellipse(midProj.x, midProj.y, 8.5 * sc, 12 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Draw wrapping lines / bandages cross
+        ctx.strokeStyle = '#D5C9B8';
+        ctx.lineWidth = 1.3 * sc;
+        const heights = [3, 7, 11, 15, 19, 23];
+        heights.forEach((h, idx) => {
+          const pt = project(wx, wy, h);
+          ctx.beginPath();
+          if (idx % 2 === 0) {
+            ctx.ellipse(pt.x, pt.y, 8.5 * sc, 2.5 * sc, 0.15, 0, Math.PI * 2);
+          } else {
+            ctx.ellipse(pt.x, pt.y, 8.5 * sc, 2.5 * sc, -0.15, 0, Math.PI * 2);
+          }
+          ctx.stroke();
+        });
+
+        // 2. Eyes cutout slit
+        const headProj = project(wx, wy, 20);
+        ctx.fillStyle = '#272522'; // Deep shadow slit
+        ctx.fillRect(headProj.x - 6 * sc, headProj.y - 1.5 * sc, 12 * sc, 3.5 * sc);
+
+        // Glowing golden/amber eyes for mummy
+        ctx.fillStyle = '#F59E0B';
+        ctx.beginPath();
+        ctx.arc(headProj.x - 2.5 * sc, headProj.y, 1.2 * sc, 0, Math.PI * 2);
+        ctx.arc(headProj.x + 2.5 * sc, headProj.y, 1.2 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. Hanging bandage loose wrap/ribbon swooping from the body to make it super mummified!
+        ctx.strokeStyle = '#EFEAE2';
+        ctx.lineWidth = 2 * sc;
+        ctx.beginPath();
+        const startHand = project(wx + 4, wy, 8);
+        const endHand = project(wx + 13, wy + 4, 1);
+        ctx.moveTo(startHand.x, startHand.y);
+        ctx.quadraticCurveTo(startHand.x + 6 * sc, startHand.y + 4 * sc, endHand.x, endHand.y);
+        ctx.stroke();
+      };
+
+      // BEACH SAND CASTLE generator
+      const draw3DSandCastle = (wx: number, wy: number) => {
+        const base = project(wx, wy, 0);
+        const sc = base.scale;
+
+        // Ground shadow
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
+        ctx.beginPath();
+        ctx.ellipse(base.x, base.y, 22 * sc, 8 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 1. Central fortified base wall
+        ctx.fillStyle = '#EAB308'; // Sand yellow
+        ctx.strokeStyle = '#CA8A04'; // Darker sandy stroke for depth
+        ctx.lineWidth = 1 * sc;
+
+        const baseProj = project(wx, wy, 6);
+        ctx.beginPath();
+        ctx.ellipse(baseProj.x, baseProj.y, 14 * sc, 6 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillRect(baseProj.x - 14 * sc, baseProj.y, 28 * sc, base.y - baseProj.y);
+
+        // Main castle gate archway
+        ctx.fillStyle = '#3F2C0B'; // dark brown door
+        ctx.beginPath();
+        ctx.ellipse(baseProj.x, base.y, 4 * sc, 5 * sc, 0, Math.PI, 0);
+        ctx.fill();
+
+        // 2. Left tall tower and Right tall tower
+        const hLeft = project(wx - 15, wy, 18);
+        const hRight = project(wx + 15, wy, 18);
+        const bLeft = project(wx - 15, wy, 0);
+        const bRight = project(wx + 15, wy, 0);
+
+        ctx.fillStyle = '#F59E0B'; // bright sandy color
+        // Draw Left Tower Column
+        ctx.fillRect(hLeft.x - 4 * sc, hLeft.y, 8 * sc, bLeft.y - hLeft.y);
+        // Draw Right Tower Column
+        ctx.fillRect(hRight.x - 4 * sc, hRight.y, 8 * sc, bRight.y - hRight.y);
+
+        // Cone roofs on tower cups / summits
+        const peakLeft = project(wx - 15, wy, 25);
+        const peakRight = project(wx + 15, wy, 25);
+
+        ctx.fillStyle = '#DC2626'; // Nautical red caps / flags
+        // Left cone
+        ctx.beginPath();
+        ctx.moveTo(hLeft.x - 5.5 * sc, hLeft.y);
+        ctx.lineTo(hLeft.x + 5.5 * sc, hLeft.y);
+        ctx.lineTo(peakLeft.x, peakLeft.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Right cone
+        ctx.beginPath();
+        ctx.moveTo(hRight.x - 5.5 * sc, hRight.y);
+        ctx.lineTo(hRight.x + 5.5 * sc, hRight.y);
+        ctx.lineTo(peakRight.x, peakRight.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Sprouting Red fluttering flags on top!
+        ctx.fillStyle = '#EF4444';
+        ctx.beginPath();
+        ctx.moveTo(peakLeft.x, peakLeft.y);
+        ctx.lineTo(peakLeft.x + 7 * sc, peakLeft.y + 2 * sc);
+        ctx.lineTo(peakLeft.x, peakLeft.y + 4 * sc);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(peakRight.x, peakRight.y);
+        ctx.lineTo(peakRight.x + 7 * sc, peakRight.y + 2 * sc);
+        ctx.lineTo(peakRight.x, peakRight.y + 4 * sc);
+        ctx.closePath();
+        ctx.fill();
+      };
+
       // DESERT generators
       const draw3DDesertPyramid = (wx: number, wy: number, halfW: number, H: number) => {
         const pL = project(wx - halfW, wy + halfW, 0); // front-left
@@ -984,26 +1201,26 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
 
       // Draw active environment's static framing decorative props around the corners
       if (activeMap === 'open') {
-        // SUMMER
+        // SUMMER GARDEN
         draw3DOakTree(42, 42);
         draw3DOakTree(MAP_WIDTH - 42, 42);
         draw3DOakTree(42, MAP_HEIGHT - 42);
         draw3DOakTree(MAP_WIDTH - 42, MAP_HEIGHT - 42);
 
-        draw3DWildflowerBunch(110, 48, '#EC4899');
+        draw3DGardenGnome(110, 48); // Cute custom gnome as requested!
         draw3DWildflowerBunch(MAP_WIDTH - 110, 48, '#F59E0B');
-        draw3DWildflowerBunch(MAP_WIDTH - 110, MAP_HEIGHT - 48, '#A855F7');
+        draw3DGardenGnome(MAP_WIDTH - 110, MAP_HEIGHT - 48); // Symmetrical gnome!
         draw3DWildflowerBunch(110, MAP_HEIGHT - 48, '#EF4444');
       } else if (activeMap === 'arena') {
-        // BEACH
+        // BEACH SCENARIOS
         draw3DPalmTree(42, 42);
         draw3DPalmTree(MAP_WIDTH - 42, 42);
         draw3DPalmTree(42, MAP_HEIGHT - 42);
         draw3DPalmTree(MAP_WIDTH - 42, MAP_HEIGHT - 42);
 
-        draw3DBeachUmbrella(110, 48);
+        draw3DSandCastle(110, 48); // Beautiful sand castle!
         draw3DBeachUmbrella(MAP_WIDTH - 110, 48);
-        draw3DBeachUmbrella(MAP_WIDTH - 110, MAP_HEIGHT - 48);
+        draw3DSandCastle(MAP_WIDTH - 110, MAP_HEIGHT - 48); // Symmetrical sand castle!
         draw3DBeachUmbrella(110, MAP_HEIGHT - 48);
       } else if (activeMap === 'maze') {
         // DESERT
@@ -1012,9 +1229,9 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         draw3DDesertPyramid(42, MAP_HEIGHT - 42, 18, 38);
         draw3DDesertPyramid(MAP_WIDTH - 42, MAP_HEIGHT - 42, 18, 38);
 
-        draw3DEgyptianObelisk(110, 48);
+        draw3DMummyDoll(110, 48); // Cryptic cute Mummy Doll!
         draw3DEgyptianObelisk(MAP_WIDTH - 110, 48);
-        draw3DEgyptianObelisk(MAP_WIDTH - 110, MAP_HEIGHT - 48);
+        draw3DMummyDoll(MAP_WIDTH - 110, MAP_HEIGHT - 48);
         draw3DEgyptianObelisk(110, MAP_HEIGHT - 48);
       } else {
         // WINTER
