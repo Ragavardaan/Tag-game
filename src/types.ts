@@ -24,6 +24,7 @@ export interface Player {
   emojiExpiresAt: number; // server timestamp
   message: string | null;
   messageExpiresAt: number; // server timestamp
+  lastTeleportTime?: number; // server timestamp to handle portal exit cooldowns
 }
 
 export interface PowerUp {
