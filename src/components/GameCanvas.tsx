@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { Room, Player } from '../types';
-import { MAP_WIDTH, MAP_HEIGHT, PLAYER_RADIUS, POWERUP_RADIUS, MAP_WALLS, checkWallCollision } from '../maps';
+import { MAP_WIDTH, MAP_HEIGHT, PLAYER_RADIUS, POWERUP_RADIUS, MAP_WALLS, checkWallCollision, MAP_PORTALS, PORTAL_RADIUS } from '../maps';
+
+// Utility helper to safely darken/lighten color hex hashes for 3D depth-shading
+function shadeColor(color: string, percent: number): string {
+  if (!color || !color.startsWith('#')) return color;
+  const num = parseInt(color.replace('#', ''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = (num >> 16) + amt;
+  const G = (num >> 8 & 0x00FF) + amt;
+  const B = (num & 0x0000FF) + amt;
+  const rClamped = Math.max(0, Math.min(255, R));
+  const gClamped = Math.max(0, Math.min(255, G));
+  const bClamped = Math.max(0, Math.min(255, B));
+  return '#' + (0x1000000 + rClamped * 0x10000 + gClamped * 0x100 + bClamped).toString(16).slice(1);
+}
 
 interface GameCanvasProps {
   room: Room;
@@ -148,6 +162,28 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
           targetX = Math.max(PLAYER_RADIUS, Math.min(MAP_WIDTH - PLAYER_RADIUS, targetX));
           targetY = Math.max(PLAYER_RADIUS, Math.min(MAP_HEIGHT - PLAYER_RADIUS, targetY));
 
+          // Predict and warp player coordinates instantly through portals
+          const portals = MAP_PORTALS[room.config.map];
+          if (portals && portals.length === 2) {
+            const nowTs = Date.now();
+            const lastTele = (localPlayer as any).lastTeleportTime || 0;
+            if (nowTs - lastTele > 1500) {
+              for (let i = 0; i < 2; i++) {
+                const portal = portals[i];
+                const pdx = targetX - portal.x;
+                const pdy = targetY - portal.y;
+                const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+                if (pdist < PLAYER_RADIUS + PORTAL_RADIUS) {
+                  const otherPortal = portals[1 - i];
+                  targetX = otherPortal.x;
+                  targetY = otherPortal.y;
+                  (localPlayer as any).lastTeleportTime = nowTs;
+                  break;
+                }
+              }
+            }
+          }
+
           // If moved, save state and send ws message
           if (targetX !== oldX || targetY !== oldY) {
             playerPosRef.current = { x: targetX, y: targetY };
@@ -167,124 +203,254 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         }
       }
 
-      // 4. DRAW GRAPHICS FOR THE SCREEN
+      // 4. DRAW GRAPHICS FOR THE SCREEN WITH 3D PERSPECTIVE PROJECTION
       ctx.clearRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
-      // Draw Grid lines background for high-tech arena feel
-      ctx.strokeStyle = '#1E293B';
+      // Define 3D projection mathematical system
+      const project = (wx: number, wy: number, wz: number = 0) => {
+        const cx = wx - MAP_WIDTH / 2;
+        const cy = wy - MAP_HEIGHT / 2;
+
+        const tiltAngle = 36 * Math.PI / 180; // beautiful 36 deg tilt
+        const cosT = Math.cos(tiltAngle);
+        const sinT = Math.sin(tiltAngle);
+
+        const xScaled = cx * 0.82;
+        const yScaled = cy * 0.65;
+
+        const rotY = yScaled * cosT - wz * sinT;
+        const rotZ = yScaled * sinT + wz * cosT;
+
+        const D = 550;
+        const perspectiveScale = D / (D + rotZ * 0.55);
+
+        const screenX = MAP_WIDTH / 2 + xScaled * perspectiveScale;
+        const screenY = MAP_HEIGHT / 2 + 35 + rotY * perspectiveScale;
+
+        return { x: screenX, y: screenY, scale: perspectiveScale };
+      };
+
+      // 3D Extrusion Solid Slabs Generator for walls
+      const draw3DBox = (
+        bx: number,
+        by: number,
+        bw: number,
+        bh: number,
+        H: number,
+        colorTop: string,
+        colorSide: string
+      ) => {
+        const p1 = project(bx, by, 0);
+        const p2 = project(bx + bw, by, 0);
+        const p3 = project(bx + bw, by + bh, 0);
+        const p4 = project(bx, by + bh, 0);
+
+        const t1 = project(bx, by, H);
+        const t2 = project(bx + bw, by, H);
+        const t3 = project(bx + bw, by + bh, H);
+        const t4 = project(bx, by + bh, H);
+
+        // Sides: Back
+        ctx.fillStyle = shadeColor('#0F172A', -15);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.lineTo(t2.x, t2.y);
+        ctx.lineTo(t1.x, t1.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Sides: Left
+        ctx.fillStyle = shadeColor(colorSide, -30);
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p4.x, p4.y);
+        ctx.lineTo(t4.x, t4.y);
+        ctx.lineTo(t1.x, t1.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Sides: Right
+        ctx.fillStyle = shadeColor(colorSide, -18);
+        ctx.beginPath();
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.lineTo(t3.x, t3.y);
+        ctx.lineTo(t2.x, t2.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Sides: Front (facing player, illuminated)
+        ctx.fillStyle = colorSide;
+        ctx.beginPath();
+        ctx.moveTo(p4.x, p4.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.lineTo(t3.x, t3.y);
+        ctx.lineTo(t4.x, t4.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Top Cap
+        ctx.fillStyle = colorTop;
+        ctx.beginPath();
+        ctx.moveTo(t1.x, t1.y);
+        ctx.lineTo(t2.x, t2.y);
+        ctx.lineTo(t3.x, t3.y);
+        ctx.lineTo(t4.x, t4.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Highlight stroke rim
+        ctx.strokeStyle = shadeColor(colorTop, 30);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(t1.x, t1.y);
+        ctx.lineTo(t2.x, t2.y);
+        ctx.lineTo(t3.x, t3.y);
+        ctx.lineTo(t4.x, t4.y);
+        ctx.closePath();
+        ctx.stroke();
+      };
+
+      // 1. Draw Space background starry grid field
+      ctx.fillStyle = '#020617'; // deepest space dark blue
+      ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+      // 2. Draw 3D Arena Ground Floor plate
+      const fl1 = project(0, 0, 0);
+      const fl2 = project(MAP_WIDTH, 0, 0);
+      const fl3 = project(MAP_WIDTH, MAP_HEIGHT, 0);
+      const fl4 = project(0, MAP_HEIGHT, 0);
+
+      ctx.fillStyle = '#0F172A'; // slate-900 floor
+      ctx.beginPath();
+      ctx.moveTo(fl1.x, fl1.y);
+      ctx.lineTo(fl2.x, fl2.y);
+      ctx.lineTo(fl3.x, fl3.y);
+      ctx.lineTo(fl4.x, fl4.y);
+      ctx.closePath();
+      ctx.fill();
+
+      // Neon glowing platform outline
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)'; // cyan sky glow rim
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // 3. Draw Beautiful receding Grid Lines on the floor plate
+      ctx.strokeStyle = '#1e293b';
       ctx.lineWidth = 1;
-      const gridSize = 40;
-      for (let x = 0; x < MAP_WIDTH; x += gridSize) {
+      const gridSizeRef = 40;
+      for (let x = 0; x <= MAP_WIDTH; x += gridSizeRef) {
+        const startP = project(x, 0, 0);
+        const endP = project(x, MAP_HEIGHT, 0);
         ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, MAP_HEIGHT);
+        ctx.moveTo(startP.x, startP.y);
+        ctx.lineTo(endP.x, endP.y);
         ctx.stroke();
       }
-      for (let y = 0; y < MAP_HEIGHT; y += gridSize) {
+      for (let y = 0; y <= MAP_HEIGHT; y += gridSizeRef) {
+        const startP = project(0, y, 0);
+        const endP = project(MAP_WIDTH, y, 0);
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(MAP_WIDTH, y);
+        ctx.moveTo(startP.x, startP.y);
+        ctx.lineTo(endP.x, endP.y);
         ctx.stroke();
       }
 
-      // Draw Walls configured for the map
+      // 4. Draw 3D Platform Rim / Outer Boundary Walls
+      // This builds real thick physical borders on our platform
+      const borderH = 20;
+      const bcTop = '#334155';
+      const bcSide = '#1E293B';
+      draw3DBox(-8, -8, MAP_WIDTH + 16, 8, borderH, bcTop, bcSide); // Top wall
+      draw3DBox(-8, MAP_HEIGHT, MAP_WIDTH + 16, 8, borderH, bcTop, bcSide); // Bottom wall
+      draw3DBox(-8, 0, 8, MAP_HEIGHT, borderH, bcTop, bcSide); // Left wall
+      draw3DBox(MAP_WIDTH, 0, 8, MAP_HEIGHT, borderH, bcTop, bcSide); // Right wall
+
+      // 5. Draw 3D Walls for the active map configuration
       walls.forEach(wall => {
-        // Drop shadows
-        ctx.fillStyle = '#0F172A';
-        ctx.fillRect(wall.x + 3, wall.y + 3, wall.w, wall.h);
-
-        // Core Block
-        ctx.fillStyle = '#334155';
-        ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
-
-        // Tech borders
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(wall.x, wall.y, wall.w, wall.h);
-
-        // Inner glowing stripes for aesthetic
-        ctx.strokeStyle = '#1E293B';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(wall.x + 4, wall.y + 4);
-        ctx.lineTo(wall.x + wall.w - 4, wall.y + wall.h - 4);
-        ctx.stroke();
+        // High-tech slate block with illuminated cyan/slate highlight rims
+        draw3DBox(wall.x, wall.y, wall.w, wall.h, 34, '#475569', '#334155');
       });
 
-      // Draw power-ups
-      room.powerUps.forEach(pu => {
-        if (!pu.active) return;
+      // 6. Draw 3D portals with beautiful swirling vortex animation
+      const renderPortal = (pctx: CanvasRenderingContext2D, px: number, py: number, label: string) => {
+        const time = Date.now() / 250;
+        const pProj = project(px, py, 0);
 
-        // Pulsing power-up radius circle glow
-        const pulse = 2 + Math.abs(Math.sin(Date.now() / 200)) * 5;
-        ctx.beginPath();
-        ctx.arc(pu.x, pu.y, POWERUP_RADIUS + pulse, 0, Math.PI * 2);
+        // Ground portal halo
+        pctx.beginPath();
+        pctx.ellipse(pProj.x, pProj.y, PORTAL_RADIUS * 1.5 * pProj.scale, PORTAL_RADIUS * 0.6 * pProj.scale, 0, 0, Math.PI * 2);
+        pctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
+        pctx.fill();
 
-        let color = '#EAB308'; // Default yellow speed
-        let char = '⚡';
-        if (pu.type === 'shield') {
-          color = '#3B82F6'; // Blue
-          char = '🛡️';
-        } else if (pu.type === 'teleport') {
-          color = '#A855F7'; // Purple
-          char = '🌀';
-        } else if (pu.type === 'freeze') {
-          color = '#06B6D4'; // Cyan
-          char = '❄️';
+        // 3D Elliptical swirling vortex rings
+        pctx.lineWidth = 2.5;
+        for (let r = 0; r < 3; r++) {
+          const sizeMult = 0.4 + ((time + r * 0.6) % 1.5) * 0.6;
+          const currentRadius = PORTAL_RADIUS * sizeMult * pProj.scale;
+          const opacity = Math.max(0, 1.0 - (sizeMult - 0.4) / 1.1);
+          pctx.strokeStyle = `rgba(217, 70, 239, ${opacity})`; // deep pinkish purple
+
+          pctx.beginPath();
+          pctx.ellipse(pProj.x, pProj.y, currentRadius, currentRadius * 0.42, (time + r) * 0.2, 0, Math.PI * 2);
+          pctx.stroke();
         }
 
-        ctx.fillStyle = `${color}22`; // semi-transparent glow
-        ctx.fill();
+        // Floating glowing core orb
+        const wave = Math.sin(time * 0.7) * 4;
+        const orbProj = project(px, py, 14 + wave);
+        pctx.beginPath();
+        pctx.ellipse(orbProj.x, orbProj.y, 8 * orbProj.scale, 4 * orbProj.scale, 0, 0, Math.PI * 2);
+        pctx.fillStyle = '#FFFFFF';
+        pctx.shadowColor = '#D946EF';
+        pctx.shadowBlur = 12;
+        pctx.fill();
+        pctx.shadowBlur = 0; // reset shadow state
 
-        // Core circle
-        ctx.beginPath();
-        ctx.arc(pu.x, pu.y, POWERUP_RADIUS, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        // Portal text floating tag
+        const textProj = project(px, py, 26);
+        pctx.fillStyle = '#E9D5FF';
+        pctx.font = 'bold 9px monospace';
+        pctx.textAlign = 'center';
+        pctx.fillText(label, textProj.x, textProj.y);
+      };
 
-        // Icon symbol inside
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = '12px Inter';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(char, pu.x, pu.y);
-      });
+      const mapPortals = MAP_PORTALS[room.config.map];
+      if (mapPortals && mapPortals.length === 2) {
+        renderPortal(ctx, mapPortals[0].x, mapPortals[0].y, '🌀 PORTAL A');
+        renderPortal(ctx, mapPortals[1].x, mapPortals[1].y, '🌀 PORTAL B');
+      }
 
-      // Draw all players
+      // 7. Draw all Players as 3D Shaded Glowing Marbles
       Object.keys(room.players).forEach(pId => {
         const player = room.players[pId];
         
-        // Setup lerped positions to prevent other player coordinates jumping around
         if (!otherPlayersLerpRef.current[pId]) {
           otherPlayersLerpRef.current[pId] = { x: player.x, y: player.y };
         }
 
         const lRef = otherPlayersLerpRef.current[pId];
 
-        // Smooth lerping for remote players, lock direct representation for local player
         if (pId === personalId) {
           lRef.x = playerPosRef.current.x;
           lRef.y = playerPosRef.current.y;
         } else {
-          // Lerp towards target server absolute coordinates
           lRef.x += (player.x - lRef.x) * 0.25;
           lRef.y += (player.y - lRef.y) * 0.25;
         }
 
         if (!player.isAlive) {
-          // Dead players (Exploded in Bomb Mode) are represented as tiny custom cross/skull tombstone
+          // Dead representation: 3D-angled skull tombstone
+          const pDead = project(lRef.x, lRef.y, 0);
           ctx.font = '22px Inter';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText('💀', lRef.x, lRef.y);
+          ctx.fillText('💀', pDead.x, pDead.y);
           
-          // Draw gray name above
           ctx.fillStyle = '#94A3B8';
           ctx.font = 'bold 11px Inter';
-          ctx.fillText(`${player.name} (RIP)`, lRef.x, lRef.y - 25);
+          ctx.fillText(`${player.name} (RIP)`, pDead.x, pDead.y - 25);
           return;
         }
 
@@ -293,75 +459,101 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         const isSpeedBoosted = nowTs < player.speedBoostUntil;
         const isFrozen = nowTs < player.frozenUntil;
 
-        // Glow halo under player
+        // Player ground project references
+        const pBottom = project(lRef.x, lRef.y, 0);
+        const pBody = project(lRef.x, lRef.y, 10); // slightly float players on the 3D surface!
+
+        // Glow halo flat on ground
         const baseGlowSize = player.isIt ? 22 : 12;
         const pulseRatio = Math.sin(nowTs / 120);
-        const glowRadius = baseGlowSize + (player.isIt ? (pulseRatio * 8) : (pulseRatio * 2));
+        const glowRadius = (baseGlowSize + (player.isIt ? (pulseRatio * 8) : (pulseRatio * 2))) * pBottom.scale;
         
         ctx.beginPath();
-        ctx.arc(lRef.x, lRef.y, glowRadius, 0, Math.PI * 2);
+        ctx.ellipse(pBottom.x, pBottom.y, glowRadius, glowRadius * 0.45, 0, 0, Math.PI * 2);
         
-        let glowColor = player.isIt ? '#EF4444' : `${player.color}55`;
-        if (player.isIt && room.config.mode === 'bomb') glowColor = '#E11D48'; // intense red for bomb
-        if (isFrozen) glowColor = '#38BDF8';
+        let glowColor = player.isIt ? 'rgba(239, 68, 68, 0.4)' : `${player.color}44`;
+        if (player.isIt && room.config.mode === 'bomb') glowColor = 'rgba(225, 29, 72, 0.5)';
+        if (isFrozen) glowColor = 'rgba(56, 189, 248, 0.4)';
 
         ctx.fillStyle = glowColor;
         ctx.fill();
 
-        // Pulse warning bands if Tag grace/cooldown is active and they are IT
+        // Pulse warning dashed ring on ground if in grace period
         if (player.isIt && nowTs < room.tagCooldownUntil) {
           ctx.beginPath();
-          ctx.arc(lRef.x, lRef.y, PLAYER_RADIUS + 8, 0, Math.PI * 2);
+          ctx.ellipse(pBottom.x, pBottom.y, (PLAYER_RADIUS + 8) * pBottom.scale, (PLAYER_RADIUS + 8) * 0.45 * pBottom.scale, 0, 0, Math.PI * 2);
           ctx.strokeStyle = '#EF4444';
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 1.5;
           ctx.setLineDash([5, 5]);
           ctx.stroke();
           ctx.setLineDash([]); // reset
         }
 
-        // Draw Player core circular avatar
+        // Draw player core shadow flat on floor
         ctx.beginPath();
-        ctx.arc(lRef.x, lRef.y, PLAYER_RADIUS, 0, Math.PI * 2);
-        ctx.fillStyle = isFrozen ? '#93C5FD' : player.color;
+        ctx.ellipse(pBottom.x, pBottom.y, PLAYER_RADIUS * pBottom.scale, PLAYER_RADIUS * 0.42 * pBottom.scale, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.5)';
         ctx.fill();
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = player.id === personalId ? 2.5 : 1.5;
-        ctx.stroke();
 
-        // Speed trailing circles for visual feedback
-        if (isSpeedBoosted) {
-          ctx.beginPath();
-          ctx.arc(lRef.x - (player.vx * 12), lRef.y - (player.vy * 12), PLAYER_RADIUS - 4, 0, Math.PI * 2);
-          ctx.fillStyle = `${player.color}55`;
-          ctx.fill();
-          
-          ctx.beginPath();
-          ctx.arc(lRef.x - (player.vx * 22), lRef.y - (player.vy * 22), PLAYER_RADIUS - 8, 0, Math.PI * 2);
-          ctx.fillStyle = `${player.color}22`;
-          ctx.fill();
-        }
-
-        // Shield glowing bubble overlay
+        // 3D Capsule-Shield if shielded
         if (isShielded) {
           ctx.beginPath();
-          ctx.arc(lRef.x, lRef.y, PLAYER_RADIUS + 6, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(59, 130, 246, 0.25)';
+          ctx.ellipse(pBody.x, pBody.y, (PLAYER_RADIUS + 5) * pBody.scale, (PLAYER_RADIUS + 5) * pBody.scale, 0, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(59, 130, 246, 0.15)';
           ctx.fill();
           ctx.strokeStyle = '#60A5FA';
           ctx.lineWidth = 2;
           ctx.stroke();
         }
 
-        // Frozen ice cube overlay
-        if (isFrozen) {
-          ctx.fillStyle = 'rgba(186, 230, 253, 0.5)';
-          ctx.fillRect(lRef.x - 14, lRef.y - 14, 28, 28);
-          ctx.strokeStyle = '#38BDF8';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(lRef.x - 14, lRef.y - 14, 28, 28);
+        // Shaded 3D Sphere Player Core
+        const rSphere = PLAYER_RADIUS * pBody.scale;
+        ctx.beginPath();
+        ctx.arc(pBody.x, pBody.y, rSphere, 0, Math.PI * 2);
+        
+        const grad = ctx.createRadialGradient(
+          pBody.x - rSphere * 0.3,
+          pBody.y - rSphere * 0.3,
+          rSphere * 0.05,
+          pBody.x,
+          pBody.y,
+          rSphere
+        );
+
+        let coreColor = isFrozen ? '#93C5FD' : player.color;
+        grad.addColorStop(0, '#FFFFFF'); // dynamic glossy reflection highlight
+        grad.addColorStop(0.35, coreColor);
+        grad.addColorStop(1, shadeColor(coreColor, -35)); // bottom right shadow wrap
+
+        ctx.fillStyle = grad;
+        ctx.fill();
+        
+        ctx.strokeStyle = player.id === personalId ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = player.id === personalId ? 2.5 : 1.2;
+        ctx.stroke();
+
+        // Draw speed motion trails if speed boosted
+        if (isSpeedBoosted) {
+          const t1 = project(lRef.x - player.vx * 12, lRef.y - player.vy * 12, 10);
+          ctx.beginPath();
+          ctx.arc(t1.x, t1.y, (PLAYER_RADIUS - 4) * t1.scale, 0, Math.PI * 2);
+          ctx.fillStyle = `${player.color}44`;
+          ctx.fill();
+          
+          const t2 = project(lRef.x - player.vx * 22, lRef.y - player.vy * 22, 10);
+          ctx.beginPath();
+          ctx.arc(t2.x, t2.y, (PLAYER_RADIUS - 8) * t2.scale, 0, Math.PI * 2);
+          ctx.fillStyle = `${player.color}18`;
+          ctx.fill();
         }
 
-        // Draw Initials inside Avatar
+        // 3D Glass block / Frozen enclosure cage
+        if (isFrozen) {
+          const iceSz = PLAYER_RADIUS + 3;
+          draw3DBox(lRef.x - iceSz, lRef.y - iceSz, iceSz * 2, iceSz * 2, 22, 'rgba(186, 230, 253, 0.3)', 'rgba(56, 189, 248, 0.5)');
+        }
+
+        // Player Labels & Initials inside Marble
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 12px Inter';
         ctx.textAlign = 'center';
@@ -371,39 +563,41 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         if (player.isIt) {
           initialLabel = room.config.mode === 'bomb' ? '💣' : '🏃';
         }
-        ctx.fillText(initialLabel, lRef.x, lRef.y);
+        ctx.fillText(initialLabel, pBody.x, pBody.y);
 
-        // Draw Indicator label for "YOU"
+        // Floating Indicator Arrow for active user
         if (player.id === personalId) {
+          const arrowProj = project(lRef.x, lRef.y, PLAYER_RADIUS * 1.5 + 12);
           ctx.fillStyle = '#FFFFFF';
           ctx.font = 'bold 9px Inter';
-          ctx.fillText('▼', lRef.x, lRef.y - PLAYER_RADIUS - 16);
+          ctx.fillText('▼', arrowProj.x, arrowProj.y);
         }
 
-        // Draw name tags cleanly above character
+        // Name tags above the floating player body
+        const nameProj = project(lRef.x, lRef.y, PLAYER_RADIUS * 1.5);
         ctx.fillStyle = '#000000';
         ctx.font = 'bold 11px Inter';
         ctx.textAlign = 'center';
-        // Stroke around text for readability under grid
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 3;
         const namePlusStatus = player.isIt 
           ? (room.config.mode === 'bomb' ? `💣 ${player.name}` : `👹 ${player.name}`) 
           : player.name;
-        ctx.strokeText(namePlusStatus, lRef.x, lRef.y - PLAYER_RADIUS - 6);
-        ctx.fillText(namePlusStatus, lRef.x, lRef.y - PLAYER_RADIUS - 6);
+        ctx.strokeText(namePlusStatus, nameProj.x, nameProj.y - 6);
+        ctx.fillText(namePlusStatus, nameProj.x, nameProj.y - 6);
 
-        // Draw Speech Bubble / Text Messages dynamically above player
+        // Speech bubble balloon floating high up
         if (player.message && nowTs < player.messageExpiresAt) {
           const text = player.message;
           ctx.font = '11px Inter';
           const textWidth = ctx.measureText(text).width;
           const bubbleW = Math.max(45, textWidth + 14);
           const bubbleH = 22;
-          const bubbleX = lRef.x - (bubbleW / 2);
-          const bubbleY = lRef.y - PLAYER_RADIUS - 44;
 
-          // Drawing bubble box
+          const bubbleProj = project(lRef.x, lRef.y, PLAYER_RADIUS * 1.5 + 26);
+          const bubbleX = bubbleProj.x - (bubbleW / 2);
+          const bubbleY = bubbleProj.y - 20;
+
           ctx.fillStyle = '#FFFFFF';
           ctx.strokeStyle = '#000000';
           ctx.lineWidth = 1.5;
@@ -412,37 +606,36 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
           ctx.fill();
           ctx.stroke();
 
-          // Bubble little anchor triangle pointing down
+          // Anchor triangle
           ctx.beginPath();
-          ctx.moveTo(lRef.x - 5, bubbleY + bubbleH);
-          ctx.lineTo(lRef.x, bubbleY + bubbleH + 5);
-          ctx.lineTo(lRef.x + 5, bubbleY + bubbleH);
+          ctx.moveTo(bubbleProj.x - 5, bubbleY + bubbleH);
+          ctx.lineTo(bubbleProj.x, bubbleY + bubbleH + 4);
+          ctx.lineTo(bubbleProj.x + 5, bubbleY + bubbleH);
           ctx.fillStyle = '#FFFFFF';
           ctx.fill();
           ctx.stroke();
 
-          // Print message text
           ctx.fillStyle = '#0F172A';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.font = 'bold 11px Inter';
-          ctx.fillText(text, lRef.x, bubbleY + (bubbleH / 2));
+          ctx.fillText(text, bubbleProj.x, bubbleY + (bubbleH / 2));
         }
 
-        // Draw Big Floating Emoji above Player separately for funny interactions!
+        // Float emojis separately above everything
         if (player.emoji && nowTs < player.emojiExpiresAt) {
+          const emojiProj = project(lRef.x, lRef.y, PLAYER_RADIUS * 1.5 + 44);
           ctx.font = '28px Inter';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          // Draw floating animated emoji (rhythm wave)
           const floatOffset = Math.sin(nowTs / 70) * 4;
-          ctx.fillText(player.emoji, lRef.x, lRef.y - PLAYER_RADIUS - 64 + floatOffset);
+          ctx.fillText(player.emoji, emojiProj.x, emojiProj.y + floatOffset);
         }
       });
 
-      // Special Status overlays for Countdown states on the Canvas
+      // Special Match Starting Overlay
       if (room.status === 'countdown') {
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
         ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
         ctx.fillStyle = '#FFFFFF';
