@@ -48,13 +48,18 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Update starting position when room begins
+  // Update starting position when room begins, and snap sync during teleportation or respawns
   useEffect(() => {
     const localPlayer = room.players[personalId];
     if (localPlayer) {
-      playerPosRef.current = { x: localPlayer.x, y: localPlayer.y };
+      const dx = playerPosRef.current.x - localPlayer.x;
+      const dy = playerPosRef.current.y - localPlayer.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (room.status !== 'playing' || dist > 35) {
+        playerPosRef.current = { x: localPlayer.x, y: localPlayer.y };
+      }
     }
-  }, [room.status, personalId]);
+  }, [room, personalId]);
 
   // Set keyboard listeners
   useEffect(() => {
@@ -312,32 +317,109 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.stroke();
       };
 
-      // 1. Draw Beautiful Pastel Winter Sky Gradient (matching user's screenshot details!)
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, MAP_HEIGHT);
-      skyGrad.addColorStop(0, '#93C5FD'); // light winter blue
-      skyGrad.addColorStop(0.4, '#C7D2FE'); // lavender slate
-      skyGrad.addColorStop(1, '#EEF2F6'); // Arctic white horizon
-      ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+      // 1. Draw Environment Sky & Hills based on Active Map Layout
+      const activeMap = room.config.map;
 
-      // Draw background layered hills / mountains in Cozy pastel purple/white
-      const drawHills = (color: string, offsetMultiplier: number, heightAmp: number) => {
-        const timeOffset = (Date.now() / 5000) * offsetMultiplier;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.moveTo(0, MAP_HEIGHT);
-        for (let x = 0; x <= MAP_WIDTH; x += 30) {
-          const y = MAP_HEIGHT / 2 + 50 + Math.sin(x * 0.005 + timeOffset) * heightAmp + Math.cos(x * 0.012) * 15;
-          ctx.lineTo(x, y);
-        }
-        ctx.lineTo(MAP_WIDTH, MAP_HEIGHT);
-        ctx.closePath();
-        ctx.fill();
-      };
-      // Far snowy mountains
-      drawHills('#C7D2FE', 0.15, 35);
-      // Mid snowy mounds with pine silhouettes or details
-      drawHills('#E0E7FF', -0.22, 22);
+      if (activeMap === 'open') {
+        // SUMMER GARDEN
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, MAP_HEIGHT);
+        skyGrad.addColorStop(0, '#38BDF8'); // sunny sky-blue
+        skyGrad.addColorStop(0.6, '#7DD3FC'); // light cyan sky
+        skyGrad.addColorStop(1, '#F0FDFA'); // warm white horizon
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+        const drawHills = (color: string, offsetMultiplier: number, heightAmp: number) => {
+          const timeOffset = (Date.now() / 5000) * offsetMultiplier;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(0, MAP_HEIGHT);
+          for (let x = 0; x <= MAP_WIDTH; x += 30) {
+            const y = MAP_HEIGHT / 2 + 50 + Math.sin(x * 0.005 + timeOffset) * heightAmp + Math.cos(x * 0.012) * 15;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(MAP_WIDTH, MAP_HEIGHT);
+          ctx.closePath();
+          ctx.fill();
+        };
+        drawHills('#15803D', 0.15, 30); // Darker grass hills
+        drawHills('#22C55E', -0.22, 18); // Brighter green hills
+
+      } else if (activeMap === 'arena') {
+        // SANDY BEACH (Sunset marine look!)
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, MAP_HEIGHT);
+        skyGrad.addColorStop(0, '#0284C7'); // tropico sky blue
+        skyGrad.addColorStop(0.5, '#FDBA74'); // warm orange-peach sunset glow
+        skyGrad.addColorStop(1, '#FDA4AF'); // warm coral twilight rose
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+        const drawWaves = (color: string, offsetMultiplier: number, heightAmp: number) => {
+          const timeOffset = (Date.now() / 3200) * offsetMultiplier;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(0, MAP_HEIGHT);
+          for (let x = 0; x <= MAP_WIDTH; x += 30) {
+            const y = MAP_HEIGHT / 2 + 45 + Math.sin(x * 0.01 + timeOffset) * heightAmp + Math.cos(x * 0.02) * 8;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(MAP_WIDTH, MAP_HEIGHT);
+          ctx.closePath();
+          ctx.fill();
+        };
+        drawWaves('#0E7490', 0.25, 20); // Far deep teal wave-ridge
+        drawWaves('#06B6D4', -0.32, 12); // Near sparkling light turquoise waves
+
+      } else if (activeMap === 'maze') {
+        // EGYPTIAN DESERT (Golden heat haze sand dunes under sunny amber)
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, MAP_HEIGHT);
+        skyGrad.addColorStop(0, '#D97706'); // warm golden amber heat haze
+        skyGrad.addColorStop(0.55, '#B45309'); // terracotta terracotta gradient
+        skyGrad.addColorStop(1, '#78350F'); // deep ancient rust ground dust
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+        const drawDunes = (color: string, offsetMultiplier: number, heightAmp: number) => {
+          const timeOffset = (Date.now() / 8200) * offsetMultiplier;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(0, MAP_HEIGHT);
+          for (let x = 0; x <= MAP_WIDTH; x += 40) {
+            const y = MAP_HEIGHT / 2 + 58 + Math.sin(x * 0.003 + timeOffset) * heightAmp + Math.cos(x * 0.008) * 12;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(MAP_WIDTH, MAP_HEIGHT);
+          ctx.closePath();
+          ctx.fill();
+        };
+        drawDunes('#92400E', 0.1, 40); // Far dark sand dunes
+        drawDunes('#D97706', -0.15, 25); // Close golden light reflection dunes
+
+      } else {
+        // WINTER MOUNTAINS (blocks - original preset)
+        const skyGrad = ctx.createLinearGradient(0, 0, 0, MAP_HEIGHT);
+        skyGrad.addColorStop(0, '#93C5FD'); // light winter blue
+        skyGrad.addColorStop(0.4, '#C7D2FE'); // lavender slate
+        skyGrad.addColorStop(1, '#EEF2F6'); // Arctic white horizon
+        ctx.fillStyle = skyGrad;
+        ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
+
+        const drawHills = (color: string, offsetMultiplier: number, heightAmp: number) => {
+          const timeOffset = (Date.now() / 5000) * offsetMultiplier;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(0, MAP_HEIGHT);
+          for (let x = 0; x <= MAP_WIDTH; x += 30) {
+            const y = MAP_HEIGHT / 2 + 50 + Math.sin(x * 0.005 + timeOffset) * heightAmp + Math.cos(x * 0.012) * 15;
+            ctx.lineTo(x, y);
+          }
+          ctx.lineTo(MAP_WIDTH, MAP_HEIGHT);
+          ctx.closePath();
+          ctx.fill();
+        };
+        drawHills('#C7D2FE', 0.15, 35);
+        drawHills('#E0E7FF', -0.22, 22);
+      }
 
       // Draw drifting soft fluffy background clouds
       const cloudTime = Date.now() / 15000;
@@ -346,7 +428,9 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         { cx: (cloudTime * 25 + 450) % (MAP_WIDTH + 180) - 90, cy: 125, scale: 1.15 },
         { cx: (cloudTime * 32 + 200) % (MAP_WIDTH + 180) - 90, cy: 55, scale: 0.8 }
       ];
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.72)';
+      ctx.fillStyle = activeMap === 'maze' 
+        ? 'rgba(254, 243, 199, 0.45)' // sand golden sky haze for desert
+        : (activeMap === 'arena' ? 'rgba(244, 63, 94, 0.22)' : 'rgba(255, 255, 255, 0.72)');
       clouds.forEach(cl => {
         ctx.beginPath();
         ctx.arc(cl.cx, cl.cy, 22 * cl.scale, 0, Math.PI * 2);
@@ -356,13 +440,21 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.fill();
       });
 
-      // 2. Draw 3D Arena Ground Floor plate covered in beautiful snow / frosting
+      // 2. Draw 3D Arena Ground Floor plate with customized colors
       const fl1 = project(0, 0, 0);
       const fl2 = project(MAP_WIDTH, 0, 0);
       const fl3 = project(MAP_WIDTH, MAP_HEIGHT, 0);
       const fl4 = project(0, MAP_HEIGHT, 0);
 
-      ctx.fillStyle = '#E2E8F0'; // clean Arctic snowy base plate
+      if (activeMap === 'open') {
+        ctx.fillStyle = '#86EFAC'; // Summer Meadow rich grassy green
+      } else if (activeMap === 'arena') {
+        ctx.fillStyle = '#FEF08A'; // Beach sun golden sand
+      } else if (activeMap === 'maze') {
+        ctx.fillStyle = '#F6E0B1'; // Desert Egyptian clay space sand
+      } else {
+        ctx.fillStyle = '#E2E8F0'; // Snowy white/icy platform
+      }
       ctx.beginPath();
       ctx.moveTo(fl1.x, fl1.y);
       ctx.lineTo(fl2.x, fl2.y);
@@ -371,13 +463,29 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
       ctx.closePath();
       ctx.fill();
 
-      // Soft icy teal-blue glowing plate outline
-      ctx.strokeStyle = 'rgba(147, 197, 253, 0.6)'; 
+      // Soft layout glowing platform boundary lines
+      if (activeMap === 'open') {
+        ctx.strokeStyle = 'rgba(22, 163, 74, 0.5)'; // green nature halo
+      } else if (activeMap === 'arena') {
+        ctx.strokeStyle = 'rgba(234, 179, 8, 0.5)'; // golden sand halo
+      } else if (activeMap === 'maze') {
+        ctx.strokeStyle = 'rgba(180, 83, 9, 0.5)'; // desert sunset copper borders
+      } else {
+        ctx.strokeStyle = 'rgba(147, 197, 253, 0.6)'; // winter frost
+      }
       ctx.lineWidth = 4;
       ctx.stroke();
 
-      // 3. Draw Beautiful receding Grid Lines on the floor plate (for positioning feedback)
-      ctx.strokeStyle = '#CBD5E1';
+      // 3. Draw Beautiful structural grids flat on platform floor
+      if (activeMap === 'open') {
+        ctx.strokeStyle = '#4ADE80'; // grass
+      } else if (activeMap === 'arena') {
+        ctx.strokeStyle = '#EAB308'; // wet golden sand
+      } else if (activeMap === 'maze') {
+        ctx.strokeStyle = '#D97706'; // copper sandstone lines
+      } else {
+        ctx.strokeStyle = '#CBD5E1'; // icy blue grey
+      }
       ctx.lineWidth = 1;
       const gridSizeRef = 40;
       for (let x = 0; x <= MAP_WIDTH; x += gridSizeRef) {
@@ -397,22 +505,54 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.stroke();
       }
 
-      // 4. Draw 3D Platform Rim / Outer Boundary Walls with fluffy snow tops
+      // 4. Draw 3D Platform Rim / Outer Boundary Walls
       const borderH = 22;
-      const snowTop = '#FFFFFF';
-      const icyRock = '#312E81';
-      draw3DBox(-8, -8, MAP_WIDTH + 16, 8, borderH, snowTop, icyRock); // Top wall
-      draw3DBox(-8, MAP_HEIGHT, MAP_WIDTH + 16, 8, borderH, snowTop, icyRock); // Bottom wall
-      draw3DBox(-8, 0, 8, MAP_HEIGHT, borderH, snowTop, icyRock); // Left wall
-      draw3DBox(MAP_WIDTH, 0, 8, MAP_HEIGHT, borderH, snowTop, icyRock); // Right wall
+      let topCol = '#FFFFFF';
+      let sideCol = '#312E81';
 
-      // 5. Draw 3D Walls for the active map configuration with heavy snow caps
+      if (activeMap === 'open') {
+        topCol = '#4D7C0F'; // moss hedge top
+        sideCol = '#5C4033'; // dark bark wood logs
+      } else if (activeMap === 'arena') {
+        topCol = '#22D3EE'; // aquatic cyan foam
+        sideCol = '#7C2D12'; // dry driftwood mahogany
+      } else if (activeMap === 'maze') {
+        topCol = '#FACC15'; // shimmering brass yellow
+        sideCol = '#92400E'; // terracotta sandstone bricks
+      } else {
+        topCol = '#FFFFFF'; // frosty snowcap
+        sideCol = '#312E81'; // solid indigo rock
+      }
+      draw3DBox(-8, -8, MAP_WIDTH + 16, 8, borderH, topCol, sideCol); // Top wall
+      draw3DBox(-8, MAP_HEIGHT, MAP_WIDTH + 16, 8, borderH, topCol, sideCol); // Bottom wall
+      draw3DBox(-8, 0, 8, MAP_HEIGHT, borderH, topCol, sideCol); // Left wall
+      draw3DBox(MAP_WIDTH, 0, 8, MAP_HEIGHT, borderH, topCol, sideCol); // Right wall
+
+      // 5. Draw 3D Walls for active map layout in customized styles
       walls.forEach(wall => {
-        // High-tech slate block with illuminated white/indigo highlight rims
-        draw3DBox(wall.x, wall.y, wall.w, wall.h, 36, '#FFFFFF', '#4338CA');
+        let wtCol = '#FFFFFF';
+        let wsCol = '#4338CA';
+        if (activeMap === 'open') {
+          wtCol = '#22C55E'; // green moss shrubs
+          wsCol = '#78350F'; // log brown sides
+        } else if (activeMap === 'arena') {
+          wtCol = '#FEF9C3'; // thatched umbrella straw cream
+          wsCol = '#0284C7'; // tropical marine sea blue blocks
+        } else if (activeMap === 'maze') {
+          wtCol = '#FBBF24'; // polished pyramids gold tops
+          wsCol = '#B45309'; // Sandstone clay hieroglyphic bricks
+        } else {
+          wtCol = '#FFFFFF'; // Winter snowy top
+          wsCol = '#4338CA'; // Winter royal indigo blocks
+        }
+        draw3DBox(wall.x, wall.y, wall.w, wall.h, 36, wtCol, wsCol);
       });
 
-      // 3D Pine Tree Generator
+      // ==========================================
+      // ========= 3D ENVIRONMENT GENERATORS ======
+      // ==========================================
+
+      // WINTER generators
       const draw3DPineTree = (wx: number, wy: number) => {
         const trunkProj = project(wx, wy, 0);
         const leaf1Proj = project(wx, wy, 12);
@@ -422,14 +562,14 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         const sc = trunkProj.scale;
 
         // Draw Trunk
-        ctx.fillStyle = '#78350F'; // solid brown
+        ctx.fillStyle = '#78350F';
         ctx.beginPath();
         ctx.ellipse(trunkProj.x, trunkProj.y, 4 * sc, 2 * sc, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.fillRect(trunkProj.x - 3 * sc, trunkProj.y - 12 * sc, 6 * sc, 12 * sc);
 
-        // Cascade Layer 1 (bottom)
-        ctx.fillStyle = '#065F46'; // forest green
+        // Cascade Layer 1
+        ctx.fillStyle = '#065F46';
         ctx.beginPath();
         ctx.moveTo(leaf1Proj.x - 22 * sc, leaf1Proj.y);
         ctx.lineTo(leaf1Proj.x + 22 * sc, leaf1Proj.y);
@@ -437,7 +577,7 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.closePath();
         ctx.fill();
 
-        // snow lip layer 1
+        // snow cap lid 1
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.moveTo(leaf1Proj.x - 22 * sc, leaf1Proj.y);
@@ -447,7 +587,7 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.closePath();
         ctx.fill();
 
-        // Cascade Layer 2 (middle)
+        // Cascade Layer 2
         ctx.fillStyle = '#047857';
         ctx.beginPath();
         ctx.moveTo(leaf2Proj.x - 17 * sc, leaf2Proj.y);
@@ -456,7 +596,7 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.closePath();
         ctx.fill();
 
-        // snow lip layer 2
+        // snow cap lid 2
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.moveTo(leaf2Proj.x - 17 * sc, leaf2Proj.y);
@@ -466,7 +606,7 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.closePath();
         ctx.fill();
 
-        // Cascade Layer 3 (top)
+        // Cascade Layer 3
         ctx.fillStyle = '#059669';
         ctx.beginPath();
         ctx.moveTo(leaf3Proj.x - 11 * sc, leaf3Proj.y);
@@ -476,7 +616,7 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.closePath();
         ctx.fill();
 
-        // tree top snowcap
+        // top tree cap
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.moveTo(leaf3Proj.x - 5 * sc, leaf3Proj.y + 2 * sc);
@@ -486,20 +626,17 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.fill();
       };
 
-      // 3D Cozy Snowman Generator
       const draw3DSnowman = (wx: number, wy: number) => {
         const bottomProj = project(wx, wy, 0);
         const bodyProj = project(wx, wy, 10);
         const headProj = project(wx, wy, 24);
         const sc = bottomProj.scale;
 
-        // Ground shadow
         ctx.fillStyle = 'rgba(15, 23, 42, 0.2)';
         ctx.beginPath();
         ctx.ellipse(bottomProj.x, bottomProj.y, 14 * sc, 6 * sc, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Bottom snow ball
         ctx.fillStyle = '#F8FAFC';
         ctx.strokeStyle = '#CBD5E1';
         ctx.lineWidth = 1 * sc;
@@ -508,29 +645,25 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.fill();
         ctx.stroke();
 
-        // Buttons
         ctx.fillStyle = '#1E293B';
         ctx.beginPath();
         ctx.arc(bodyProj.x, bodyProj.y - 1 * sc, 2 * sc, 0, Math.PI * 2);
         ctx.arc(bodyProj.x, bodyProj.y + 4 * sc, 2 * sc, 0, Math.PI * 2);
         ctx.fill();
 
-        // Head snow ball
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
         ctx.arc(headProj.x, headProj.y, 7.5 * sc, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Eyes
         ctx.fillStyle = '#0F172A';
         ctx.beginPath();
         ctx.arc(headProj.x - 2 * sc, headProj.y - 1 * sc, 1 * sc, 0, Math.PI * 2);
         ctx.arc(headProj.x + 2 * sc, headProj.y - 1 * sc, 1 * sc, 0, Math.PI * 2);
         ctx.fill();
 
-        // Carrot nose
-        ctx.fillStyle = '#EA580C'; // orange
+        ctx.fillStyle = '#EA580C'; // carrot
         ctx.beginPath();
         ctx.moveTo(headProj.x, headProj.y);
         ctx.lineTo(headProj.x + 5 * sc, headProj.y + 1 * sc);
@@ -538,13 +671,11 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.closePath();
         ctx.fill();
 
-        // Red cozy scarf (wrapped around neck area)
-        ctx.fillStyle = '#EF4444';
+        ctx.fillStyle = '#EF4444'; // scarf
         ctx.beginPath();
         ctx.ellipse(headProj.x, headProj.y + 6 * sc, 7.5 * sc, 3 * sc, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Scarf trailing tail
         ctx.beginPath();
         ctx.moveTo(headProj.x + 3 * sc, headProj.y + 6 * sc);
         ctx.lineTo(headProj.x + 7 * sc, headProj.y + 13 * sc);
@@ -553,28 +684,21 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         ctx.closePath();
         ctx.fill();
 
-        // Black tiny top hat (classic snowman hat!)
-        ctx.fillStyle = '#1E293B';
-        // Brim
+        ctx.fillStyle = '#1E293B'; // top hat
         ctx.fillRect(headProj.x - 7 * sc, headProj.y - 9 * sc, 14 * sc, 2.5 * sc);
-        // Base
         ctx.fillRect(headProj.x - 4 * sc, headProj.y - 17 * sc, 8 * sc, 8 * sc);
-        // Red ribbons around hat
         ctx.fillStyle = '#EF4444';
         ctx.fillRect(headProj.x - 4 * sc, headProj.y - 11 * sc, 8 * sc, 2 * sc);
       };
 
-      // 3D Candy Cane Generator
       const draw3DCandyCane = (wx: number, wy: number) => {
         const baseProj = project(wx, wy, 0);
         const sc = baseProj.scale;
 
-        // Render curving segmented path using simple projection points
         ctx.lineWidth = 5 * sc;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // Draw background shadow
         ctx.strokeStyle = 'rgba(15, 23, 42, 0.15)';
         ctx.beginPath();
         for (let hz = 0; hz <= 36; hz += 4) {
@@ -589,7 +713,6 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         }
         ctx.stroke();
 
-        // Draw standard stylized stripes using a loop
         for (let hz = 0; hz <= 36; hz += 2) {
           let rx = wx;
           if (hz > 24) {
@@ -605,7 +728,6 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
           }
           const pt2 = project(rxNext, wy, hz + 2);
 
-          // alternating red and white stripes
           ctx.strokeStyle = (Math.floor(hz / 4) % 2 === 0) ? '#EF4444' : '#F8FAFC';
           ctx.beginPath();
           ctx.moveTo(pt1.x, pt1.y);
@@ -614,16 +736,308 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
         }
       };
 
-      // Draw static cozy winter props around the corners and margins so they frame the game nicely
-      draw3DPineTree(42, 42);
-      draw3DPineTree(MAP_WIDTH - 42, 42);
-      draw3DPineTree(42, MAP_HEIGHT - 42);
-      draw3DPineTree(MAP_WIDTH - 42, MAP_HEIGHT - 42);
+      // SUMMER generators
+      const draw3DOakTree = (wx: number, wy: number) => {
+        const bottomProj = project(wx, wy, 0);
+        const leafProj1 = project(wx, wy, 20);
+        const leafProj2 = project(wx, wy, 36);
+        const sc = bottomProj.scale;
 
-      draw3DSnowman(110, 48);
-      draw3DCandyCane(MAP_WIDTH - 110, 48);
-      draw3DSnowman(MAP_WIDTH - 110, MAP_HEIGHT - 48);
-      draw3DCandyCane(110, MAP_HEIGHT - 48);
+        // Trunk
+        ctx.fillStyle = '#5C4033'; // deep bark
+        ctx.beginPath();
+        ctx.ellipse(bottomProj.x, bottomProj.y, 6 * sc, 3 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(bottomProj.x - 4.5 * sc, bottomProj.y - 18 * sc, 9 * sc, 18 * sc);
+
+        // Lower Foliage
+        ctx.fillStyle = '#15803D'; // forest green
+        ctx.beginPath();
+        ctx.arc(leafProj1.x, leafProj1.y, 22 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Upper Foliage
+        ctx.fillStyle = '#16A34A'; // bright lime green
+        ctx.beginPath();
+        ctx.arc(leafProj2.x, leafProj2.y, 16 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Specular apple / leaf highlight spots
+        ctx.fillStyle = '#EF4444'; // little apples
+        ctx.beginPath();
+        ctx.arc(leafProj1.x - 7 * sc, leafProj1.y + 6 * sc, 1.8 * sc, 0, Math.PI * 2);
+        ctx.arc(leafProj1.x + 9 * sc, leafProj1.y - 3 * sc, 1.8 * sc, 0, Math.PI * 2);
+        ctx.arc(leafProj2.x - 2 * sc, leafProj2.y + 2 * sc, 1.8 * sc, 0, Math.PI * 2);
+        ctx.fill();
+      };
+
+      const draw3DWildflowerBunch = (wx: number, wy: number, color: string) => {
+        const base = project(wx, wy, 0);
+        const sc = base.scale;
+
+        ctx.fillStyle = '#16A34A'; // green leaf plate
+        ctx.beginPath();
+        ctx.ellipse(base.x, base.y, 10 * sc, 4.5 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // stems
+        ctx.strokeStyle = '#15803D';
+        ctx.lineWidth = 1.6 * sc;
+        ctx.beginPath();
+        ctx.moveTo(base.x - 4 * sc, base.y);
+        ctx.lineTo(base.x - 6 * sc, base.y - 12 * sc);
+        ctx.moveTo(base.x + 4 * sc, base.y);
+        ctx.lineTo(base.x + 6 * sc, base.y - 10 * sc);
+        ctx.moveTo(base.x, base.y);
+        ctx.lineTo(base.x + 1 * sc, base.y - 15 * sc);
+        ctx.stroke();
+
+        // petals
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(base.x - 6 * sc, base.y - 12 * sc, 3.5 * sc, 0, Math.PI * 2);
+        ctx.arc(base.x + 6 * sc, base.y - 10 * sc, 3 * sc, 0, Math.PI * 2);
+        ctx.arc(base.x + 1 * sc, base.y - 15 * sc, 3.8 * sc, 0, Math.PI * 2);
+        ctx.fill();
+
+        // flower center cores
+        ctx.fillStyle = '#FBBF24';
+        ctx.beginPath();
+        ctx.arc(base.x - 6 * sc, base.y - 12 * sc, 1 * sc, 0, Math.PI * 2);
+        ctx.arc(base.x + 6 * sc, base.y - 10 * sc, 0.8 * sc, 0, Math.PI * 2);
+        ctx.arc(base.x + 1 * sc, base.y - 15 * sc, 1.1 * sc, 0, Math.PI * 2);
+        ctx.fill();
+      };
+
+      // BEACH generators
+      const draw3DPalmTree = (wx: number, wy: number) => {
+        const base = project(wx, wy, 0);
+        const sc = base.scale;
+
+        ctx.fillStyle = '#854D0E'; // brown root
+        ctx.beginPath();
+        ctx.ellipse(base.x, base.y, 6.5 * sc, 3 * sc, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        const trunkNodes = [];
+        for (let i = 1; i <= 6; i++) {
+          const bendAmtX = wx - i * 3.8; // creates beautiful slanted visual curve
+          trunkNodes.push(project(bendAmtX, wy, i * 7.5));
+        }
+
+        // Draw segmented wood trunk body
+        ctx.strokeStyle = '#854D0E';
+        ctx.lineWidth = 6 * sc;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(base.x, base.y);
+        trunkNodes.forEach(tNode => ctx.lineTo(tNode.x, tNode.y));
+        ctx.stroke();
+
+        // Ring carvings
+        ctx.strokeStyle = '#451A03';
+        ctx.lineWidth = 1 * sc;
+        trunkNodes.forEach(tNode => {
+          ctx.beginPath();
+          ctx.ellipse(tNode.x, tNode.y, 3.8 * sc, 1.6 * sc, 0.18, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+
+        // Palm fronds drooping gracefully
+        const crown = trunkNodes[trunkNodes.length - 1];
+        ctx.strokeStyle = '#15803D';
+        ctx.lineWidth = 3.2 * sc;
+        const angles = [0, 1.25, 2.5, 3.75, 5.0];
+        angles.forEach(angle => {
+          ctx.beginPath();
+          ctx.moveTo(crown.x, crown.y);
+          const cpX = crown.x + Math.cos(angle) * 16 * sc;
+          const cpY = crown.y + Math.sin(angle) * 6 * sc + 5 * sc;
+          const endX = crown.x + Math.cos(angle) * 26 * sc;
+          const endY = crown.y + Math.sin(angle) * 10 * sc + 15 * sc;
+          ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+          ctx.stroke();
+        });
+      };
+
+      const draw3DBeachUmbrella = (wx: number, wy: number) => {
+        const base = project(wx, wy, 0);
+        const crown = project(wx, wy, 34);
+        const sc = base.scale;
+
+        // umbrella thin stick
+        ctx.strokeStyle = '#E2E8F0';
+        ctx.lineWidth = 2 * sc;
+        ctx.beginPath();
+        ctx.moveTo(base.x, base.y);
+        ctx.lineTo(crown.x, crown.y);
+        ctx.stroke();
+
+        // Conic colored cap
+        const rad = 23 * sc;
+        ctx.fillStyle = '#EF4444';
+        ctx.beginPath();
+        ctx.ellipse(crown.x, crown.y + 3 * sc, rad, rad * 0.35, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // White canopy striped wedges
+        for (let i = 0; i < 4; i++) {
+          const a1 = (i * Math.PI) / 2;
+          const a2 = ((i + 0.5) * Math.PI) / 2;
+          ctx.fillStyle = '#FFFFFF';
+          ctx.beginPath();
+          ctx.moveTo(crown.x, crown.y);
+          ctx.ellipse(crown.x, crown.y + 3 * sc, rad, rad * 0.35, 0, a1, a2);
+          ctx.lineTo(crown.x, crown.y);
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        ctx.strokeStyle = '#EF4444';
+        ctx.lineWidth = 1 * sc;
+        ctx.beginPath();
+        ctx.ellipse(crown.x, crown.y + 3 * sc, rad, rad * 0.35, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      };
+
+      // DESERT generators
+      const draw3DDesertPyramid = (wx: number, wy: number, halfW: number, H: number) => {
+        const pL = project(wx - halfW, wy + halfW, 0); // front-left
+        const pMid = project(wx + halfW, wy + halfW, 0); // front-right
+        const pR = project(wx + halfW, wy - halfW, 0); // back-right
+        const pTop = project(wx, wy, H);
+        const sc = pL.scale;
+
+        // Shadow terracotta brown left face
+        ctx.fillStyle = '#92400E';
+        ctx.beginPath();
+        ctx.moveTo(pL.x, pL.y);
+        ctx.lineTo(pMid.x, pMid.y);
+        ctx.lineTo(pTop.x, pTop.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Shiny brass gold right face
+        ctx.fillStyle = '#FBBF24';
+        ctx.beginPath();
+        ctx.moveTo(pMid.x, pMid.y);
+        ctx.lineTo(pR.x, pR.y);
+        ctx.lineTo(pTop.x, pTop.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Crease line
+        ctx.strokeStyle = '#78350F';
+        ctx.lineWidth = 1 * sc;
+        ctx.beginPath();
+        ctx.moveTo(pL.x, pL.y);
+        ctx.lineTo(pTop.x, pTop.y);
+        ctx.lineTo(pMid.x, pMid.y);
+        ctx.lineTo(pR.x, pR.y);
+        ctx.lineTo(pTop.x, pTop.y);
+        ctx.stroke();
+
+        // Ruby capstone summit
+        ctx.fillStyle = '#EF4444'; // beautiful egyptian ruby top
+        ctx.beginPath();
+        const capP = project(wx, wy, H - 7);
+        ctx.moveTo(pTop.x, pTop.y);
+        ctx.lineTo(capP.x - 2.5 * sc, capP.y + 1 * sc);
+        ctx.lineTo(capP.x + 2.5 * sc, capP.y + 1 * sc);
+        ctx.closePath();
+        ctx.fill();
+      };
+
+      const draw3DEgyptianObelisk = (wx: number, wy: number) => {
+        const base = project(wx, wy, 0);
+        const colTop = project(wx, wy, 44);
+        const apexTip = project(wx, wy, 53);
+        const sc = base.scale;
+
+        // Left shade face
+        ctx.fillStyle = '#D97706';
+        ctx.beginPath();
+        ctx.moveTo(base.x - 4.5 * sc, base.y);
+        ctx.lineTo(base.x, base.y + 2 * sc);
+        ctx.lineTo(colTop.x, colTop.y + 2 * sc);
+        ctx.lineTo(colTop.x - 3.5 * sc, colTop.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Right light face
+        ctx.fillStyle = '#FCD34D';
+        ctx.beginPath();
+        ctx.moveTo(base.x, base.y + 2 * sc);
+        ctx.lineTo(base.x + 4.5 * sc, base.y);
+        ctx.lineTo(colTop.x + 3.5 * sc, colTop.y);
+        ctx.lineTo(colTop.x, colTop.y + 2 * sc);
+        ctx.closePath();
+        ctx.fill();
+
+        // Pyramidion top
+        ctx.fillStyle = '#F59E0B';
+        ctx.beginPath();
+        ctx.moveTo(colTop.x - 3.5 * sc, colTop.y);
+        ctx.lineTo(colTop.x + 3.5 * sc, colTop.y);
+        ctx.lineTo(apexTip.x, apexTip.y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Seam border
+        ctx.strokeStyle = '#92400E';
+        ctx.lineWidth = 1 * sc;
+        ctx.beginPath();
+        ctx.moveTo(base.x, base.y + 2 * sc);
+        ctx.lineTo(colTop.x, colTop.y + 2 * sc);
+        ctx.stroke();
+      };
+
+      // Draw active environment's static framing decorative props around the corners
+      if (activeMap === 'open') {
+        // SUMMER
+        draw3DOakTree(42, 42);
+        draw3DOakTree(MAP_WIDTH - 42, 42);
+        draw3DOakTree(42, MAP_HEIGHT - 42);
+        draw3DOakTree(MAP_WIDTH - 42, MAP_HEIGHT - 42);
+
+        draw3DWildflowerBunch(110, 48, '#EC4899');
+        draw3DWildflowerBunch(MAP_WIDTH - 110, 48, '#F59E0B');
+        draw3DWildflowerBunch(MAP_WIDTH - 110, MAP_HEIGHT - 48, '#A855F7');
+        draw3DWildflowerBunch(110, MAP_HEIGHT - 48, '#EF4444');
+      } else if (activeMap === 'arena') {
+        // BEACH
+        draw3DPalmTree(42, 42);
+        draw3DPalmTree(MAP_WIDTH - 42, 42);
+        draw3DPalmTree(42, MAP_HEIGHT - 42);
+        draw3DPalmTree(MAP_WIDTH - 42, MAP_HEIGHT - 42);
+
+        draw3DBeachUmbrella(110, 48);
+        draw3DBeachUmbrella(MAP_WIDTH - 110, 48);
+        draw3DBeachUmbrella(MAP_WIDTH - 110, MAP_HEIGHT - 48);
+        draw3DBeachUmbrella(110, MAP_HEIGHT - 48);
+      } else if (activeMap === 'maze') {
+        // DESERT
+        draw3DDesertPyramid(42, 42, 18, 38);
+        draw3DDesertPyramid(MAP_WIDTH - 42, 42, 18, 38);
+        draw3DDesertPyramid(42, MAP_HEIGHT - 42, 18, 38);
+        draw3DDesertPyramid(MAP_WIDTH - 42, MAP_HEIGHT - 42, 18, 38);
+
+        draw3DEgyptianObelisk(110, 48);
+        draw3DEgyptianObelisk(MAP_WIDTH - 110, 48);
+        draw3DEgyptianObelisk(MAP_WIDTH - 110, MAP_HEIGHT - 48);
+        draw3DEgyptianObelisk(110, MAP_HEIGHT - 48);
+      } else {
+        // WINTER
+        draw3DPineTree(42, 42);
+        draw3DPineTree(MAP_WIDTH - 42, 42);
+        draw3DPineTree(42, MAP_HEIGHT - 42);
+        draw3DPineTree(MAP_WIDTH - 42, MAP_HEIGHT - 42);
+
+        draw3DSnowman(110, 48);
+        draw3DCandyCane(MAP_WIDTH - 110, 48);
+        draw3DSnowman(MAP_WIDTH - 110, MAP_HEIGHT - 48);
+        draw3DCandyCane(110, MAP_HEIGHT - 48);
+      }
 
       // 6. Draw 3D portals with beautiful swirling vortex animation
       const renderPortal = (pctx: CanvasRenderingContext2D, px: number, py: number, label: string) => {
@@ -713,7 +1127,13 @@ export default function GameCanvas({ room, personalId, ws }: GameCanvasProps) {
 
         // Player ground project references
         const pBottom = project(lRef.x, lRef.y, 0);
-        const pBody = project(lRef.x, lRef.y, 10); // slightly float players on the 3D surface!
+        // Add dynamic sweet bobbing to make characters look alive without causing visual mismatch
+        const bobOffset = Math.sin(nowTs / 130 + pBottom.x * 0.04) * 2.2;
+        const pBody = {
+          x: pBottom.x,
+          y: pBottom.y + bobOffset,
+          scale: pBottom.scale
+        };
 
         // Glow halo flat on ground
         const baseGlowSize = player.isIt ? 22 : 12;
