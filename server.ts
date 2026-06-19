@@ -568,10 +568,19 @@ io.on('connection', (socket) => {
           if (!player || !player.isAlive) return;
 
           // Update player coordinates and velocity direct from client
-          player.x = data.x;
-          player.y = data.y;
-          player.vx = data.vx;
-          player.vy = data.vy;
+          // Ignore move updates that contradict a very recent teleportation (to let the client catch up)
+          const nowTs = Date.now();
+          const lastTele = player.lastTeleportTime || 0;
+          if (nowTs - lastTele < 350) {
+            // Keep velocity matching for graphics, but block client override of position coordinate
+            player.vx = data.vx;
+            player.vy = data.vy;
+          } else {
+            player.x = data.x;
+            player.y = data.y;
+            player.vx = data.vx;
+            player.vy = data.vy;
+          }
 
           // Process permanent active two-point portal teleportation
           const portals = MAP_PORTALS[room.config.map];
