@@ -234,6 +234,12 @@ export default function App() {
     }
   };
 
+  const handleBackToLobby = () => {
+    if (ws && ws.readyState === 1 && room?.hostId === personalId) {
+      ws.send(JSON.stringify({ type: 'back_to_lobby' }));
+    }
+  };
+
   const copyRoomCode = () => {
     if (!room) return;
     navigator.clipboard.writeText(room.code).then(() => {
@@ -986,19 +992,28 @@ export default function App() {
               <ChatBox ws={ws} chatFeed={chatFeed} />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className={`grid ${isHost ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5`}>
               {/* Reset Play button (Host only) */}
               {isHost ? (
-                <button
-                  id="play-again-btn"
-                  onClick={handleStartGame}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-display font-extrabold text-xs py-3 px-4 rounded-xl uppercase tracking-wider transition-all cursor-pointer text-white shadow-md flex items-center justify-center gap-1.5"
-                >
-                  🚀 Play Again
-                </button>
+                <>
+                  <button
+                    id="play-again-btn"
+                    onClick={handleStartGame}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-display font-extrabold text-[10px] sm:text-xs py-3 px-1 rounded-xl uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-1"
+                  >
+                    🚀 Play Again
+                  </button>
+                  <button
+                    id="back-to-lobby-btn"
+                    onClick={handleBackToLobby}
+                    className="bg-sky-600 hover:bg-sky-500 text-white font-display font-extrabold text-[10px] sm:text-xs py-3 px-1 rounded-xl uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-1 border border-sky-500"
+                  >
+                    ⚙️ Return Lobby
+                  </button>
+                </>
               ) : (
-                <div className="bg-slate-950 border border-slate-850 p-2 text-slate-400 text-center rounded-xl flex items-center justify-center text-[11px] font-sans">
-                  ⌛ Waiting for host to trigger next match...
+                <div className="bg-slate-950 border border-slate-850 p-2 text-slate-400 text-center rounded-xl flex items-center justify-center text-[10px] sm:text-xs font-sans">
+                  ⌛ Waiting for host...
                 </div>
               )}
 
@@ -1006,7 +1021,7 @@ export default function App() {
               <button
                 id="exit-to-lobby-btn"
                 onClick={leaveRoom}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-display font-extrabold text-xs py-3 px-4 rounded-xl uppercase tracking-wider transition-all cursor-pointer border border-slate-700"
+                className="bg-slate-800 hover:bg-slate-705 text-slate-200 font-display font-extrabold text-[10px] sm:text-xs py-3 px-1 rounded-xl uppercase tracking-wider transition-all cursor-pointer border border-slate-700"
               >
                 🚪 Exit Arena
               </button>
