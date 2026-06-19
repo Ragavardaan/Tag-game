@@ -557,6 +557,36 @@ io.on('connection', (socket) => {
           break;
         }
 
+        case 'back_to_lobby': {
+          const info = clients.get(socket.id);
+          if (!info) return;
+
+          const room = rooms[info.roomCode];
+          if (!room || room.hostId !== info.playerId) return;
+
+          room.status = 'lobby';
+          room.winnerId = null;
+          room.powerUps = [];
+
+          // Clean up running loops so they don't leak or conflict
+          if (roomIntervals[info.roomCode]) {
+            clearInterval(roomIntervals[info.roomCode]);
+            delete roomIntervals[info.roomCode];
+          }
+
+          broadcastToRoom(info.roomCode, { type: 'room_updated', room });
+          broadcastToRoom(info.roomCode, {
+            type: 'chat_feed',
+            id: 'system',
+            name: 'System',
+            color: '#10B981',
+            text: '🔄 Host returned the room to the lobby for configuration!',
+            timestamp: Date.now()
+          });
+
+          break;
+        }
+
         case 'move': {
           const info = clients.get(socket.id);
           if (!info) return;
