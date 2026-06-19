@@ -9,7 +9,7 @@ import { GameConfig, Room, Player, ClientMessage, ServerMessage } from './types'
 import GameCanvas from './components/GameCanvas';
 import Scoreboard from './components/Scoreboard';
 import ChatBox from './components/ChatBox';
-import { Shield, Zap, Sparkles, Trophy, Users, Clock, Flame, ChevronRight, Copy, Check, LogOut, Swords, Settings, Award } from 'lucide-react';
+import { Shield, Zap, Sparkles, Trophy, Users, Clock, Flame, ChevronRight, Copy, Check, LogOut, Swords, Settings, Award, Frown, Skull } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const DIGNITY_COLORS = [
@@ -45,6 +45,7 @@ export default function App() {
   const [speed, setSpeed] = useState<'slow' | 'normal' | 'fast' | 'insane'>('normal');
   const [gameMode, setGameMode] = useState<'classic' | 'bomb'>('classic');
   const [mapSelection, setMapSelection] = useState<'arena' | 'maze' | 'open' | 'blocks'>('arena');
+  const [botsCount, setBotsCount] = useState(0); // number of bots (0 to 6)
 
   // Active status ticker for events
   const [tickerMessage, setTickerMessage] = useState<string | null>(null);
@@ -168,10 +169,11 @@ export default function App() {
         duration,
         speed,
         mode: gameMode,
-        map: mapSelection
+        map: mapSelection,
+        botsCount
       });
     }
-  }, [maxPlayers, duration, speed, gameMode, mapSelection]);
+  }, [maxPlayers, duration, speed, gameMode, mapSelection, botsCount]);
 
   // Handle Host settings sync to UI (when joined a room hosted by someone else)
   useEffect(() => {
@@ -181,6 +183,7 @@ export default function App() {
       setSpeed(room.config.speed);
       setGameMode(room.config.mode);
       setMapSelection(room.config.map);
+      setBotsCount(room.config.botsCount !== undefined ? room.config.botsCount : 0);
     }
   }, [room, personalId]);
 
@@ -200,7 +203,8 @@ export default function App() {
         duration,
         speed,
         mode: gameMode,
-        map: mapSelection
+        map: mapSelection,
+        botsCount
       }
     };
 
@@ -519,6 +523,31 @@ export default function App() {
                       </select>
                     </div>
                   </div>
+
+                  {/* AI Bots Selector on outer config */}
+                  <div className="space-y-1.5 pt-1.5">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      <span>🤖 AI Bots Players</span>
+                      <span className="font-mono text-sky-450 font-bold">{botsCount} Bot{botsCount !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {[0, 1, 2, 3, 4, 5, 6].map((num) => (
+                        <button
+                          id={`outer-bots-${num}`}
+                          key={num}
+                          type="button"
+                          onClick={() => setBotsCount(num)}
+                          className={`py-1.5 rounded text-[10px] font-black transition cursor-pointer ${
+                            botsCount === num
+                              ? 'bg-sky-500 text-slate-950 font-bold shadow-sm'
+                              : 'bg-slate-950/50 text-slate-500 hover:text-slate-350 border border-slate-800'
+                          }`}
+                        >
+                          {num}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Create Arena Call action button */}
@@ -698,6 +727,35 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* AI Bots Option Selector */}
+                <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-800/40">
+                  <div className="flex justify-between text-xs mb-1.5">
+                    <span className="text-slate-400 font-bold">AI Bots Count</span>
+                    <span className="font-mono text-sky-400 font-bold">{botsCount} Bot{botsCount !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {[0, 1, 2, 3, 4, 5, 6].map((num) => (
+                      <button
+                        id={`staging-bots-${num}`}
+                        key={num}
+                        type="button"
+                        disabled={!isHost}
+                        onClick={() => setBotsCount(num)}
+                        className={`py-1.5 rounded text-[11px] font-black transition ${
+                          botsCount === num
+                            ? 'bg-sky-500 text-slate-950 font-bold'
+                            : 'bg-slate-950 text-slate-500 hover:text-slate-400 disabled:opacity-50'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-1.5 leading-snug">
+                    🤖 Add computer players. Great for single-player or fill slots!
+                  </p>
+                </div>
+
                 {/* Map Select */}
                 <div className="bg-slate-900/40 p-3 rounded-lg border border-slate-800/40">
                   <span className="text-slate-400 font-bold block text-xs mb-1.5">Map Layout</span>
@@ -795,24 +853,29 @@ export default function App() {
                           </div>
 
                           <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-bold text-slate-200">
+                            <span className="text-sm font-bold text-slate-200 block text-ellipsis truncate max-w-[120px]">
                               {player.name}
                             </span>
-                            {isSelf && (
-                              <span className="text-[9px] font-black uppercase text-sky-450 bg-sky-500/10 border border-sky-500/20 px-1 py-0.5 rounded">
+                            {player.isBot && (
+                              <span className="text-[9px] font-black uppercase text-pink-500 bg-pink-500/10 border border-pink-500/20 px-1 py-0.5 rounded shrink-0">
+                                🤖 CPU
+                              </span>
+                            )}
+                            {isSelf && !player.isBot && (
+                              <span className="text-[9px] font-black uppercase text-sky-450 bg-sky-500/10 border border-sky-500/20 px-1 py-0.5 rounded shrink-0">
                                 You
                               </span>
                             )}
-                            {isPlayerHost && (
-                              <span className="text-[9px] font-black uppercase text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1 py-0.5 rounded">
+                            {isPlayerHost && !player.isBot && (
+                              <span className="text-[9px] font-black uppercase text-amber-500 bg-amber-500/10 border border-amber-500/20 px-1 py-0.5 rounded shrink-0">
                                 Host
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <span className="text-[10px] font-mono text-slate-600 uppercase font-black tracking-wider">
-                          READY 🟢
+                        <span className="text-[10px] font-mono text-slate-650 uppercase font-black tracking-wider shrink-0">
+                          {player.isBot ? 'BOT AI ⚙️' : 'READY 🟢'}
                         </span>
                       </div>
                     );
@@ -827,14 +890,14 @@ export default function App() {
                     <button
                       id="start-game-btn"
                       onClick={handleStartGame}
-                      disabled={playersList.length < 2}
+                      disabled={playersList.length + botsCount < 2}
                       className="w-full bg-emerald-600 hover:bg-emerald-500 hover:scale-[1.01] text-slate-950 font-display font-black tracking-wider text-sm py-3 px-6 rounded-xl uppercase transition shadow-lg hover:shadow-emerald-500/20 disabled:scale-100 disabled:opacity-40 disabled:hover:scale-100 disabled:hover:shadow-none flex items-center justify-center gap-2 cursor-pointer text-white"
                     >
                       🚀 Start Tag Arena Match
                     </button>
-                    {playersList.length < 2 ? (
+                    {playersList.length + botsCount < 2 ? (
                       <p className="text-center font-mono text-[10px] text-zinc-500 italic">
-                        Need at least 2 players in lobby to trigger real-time chase!
+                        Need at least 2 players or AI bots in lobby to trigger real-time chase!
                       </p>
                     ) : (
                       <p className="text-center font-mono text-[10px] text-emerald-500/80 uppercase font-extrabold tracking-wider animate-bounce">
@@ -920,52 +983,78 @@ export default function App() {
   if (room.status === 'gameover') {
     const isHost = room.hostId === personalId;
     const sortedStandings = (Object.values(room.players) as Player[]).sort((a, b) => b.score - a.score);
-    const winnerPlayer = sortedStandings[0];
+    const loserPlayer = room.loserId ? room.players[room.loserId] : (Object.values(room.players) as Player[]).find(p => p.isIt);
+    const isSelfLoser = loserPlayer && loserPlayer.id === personalId;
 
     return (
       <div className="min-h-screen bg-slate-950 p-4 md:p-8 select-none font-sans flex flex-col items-center justify-center relative">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/5 via-transparent to-transparent pointer-events-none blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-rose-500/10 via-transparent to-transparent pointer-events-none blur-3xl" />
 
-        <div className="w-full max-w-3xl bg-slate-900 border-2 border-slate-800 rounded-3xl shadow-2xl p-6 md:p-8 z-10 flex flex-col items-center text-center relative overflow-hidden">
+        <div className="w-full max-w-3xl bg-slate-900 border-2 border-slate-800/80 rounded-3xl shadow-2xl p-6 md:p-8 z-10 flex flex-col items-center text-center relative overflow-hidden">
           
-          {/* Decorative glowing background stars */}
-          <div className="absolute top-0 left-0 p-4 opacity-10">
-            <Award className="w-48 h-48 text-amber-500" />
+          {/* Decorative glowing background Skull */}
+          <div className="absolute top-0 left-0 p-4 opacity-5">
+            <Skull className="w-48 h-48 text-rose-500" />
           </div>
 
-          {/* Winner Trophy Box heading */}
+          {/* Loser Warning box heading */}
           <div className="mb-6 relative z-10 flex flex-col items-center">
-            <div className="w-20 h-20 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-full flex items-center justify-center shadow-lg relative mb-4">
-              <Trophy className="w-10 h-10 animate-bounce" />
-              <span className="absolute -top-1 -right-1 text-2xl">👑</span>
+            <div className={`w-20 h-20 ${isSelfLoser ? 'bg-rose-500/10 border-rose-500/30 text-rose-450' : 'bg-orange-500/10 border-orange-500/30 text-orange-400'} border rounded-full flex items-center justify-center shadow-lg relative mb-4`}>
+              {isSelfLoser ? (
+                <Skull className="w-10 h-10 animate-bounce text-rose-500" />
+              ) : (
+                <Frown className="w-10 h-10 animate-bounce text-orange-500" />
+              )}
+              <span className="absolute -top-1 -right-1 text-2xl">🚨</span>
             </div>
             
-            <span className="text-[10px] font-black tracking-widest text-amber-400 uppercase font-mono px-3 py-1 bg-amber-950/40 border border-amber-900/60 rounded-full mb-1">
-              Arena Champion Victory
+            <span className="text-[10px] font-black tracking-widest text-rose-400 uppercase font-mono px-3 py-1 bg-rose-950/40 border border-rose-900/60 rounded-full mb-1">
+              Match Over • Timer Expired
             </span>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-white uppercase tracking-tight font-display">
-              {winnerPlayer ? winnerPlayer.name : 'Unknown User'} Wins!
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Defeated all opponents with an extraordinary score of{' '}
-              <strong className="text-amber-400 font-mono text-sm font-black">{winnerPlayer ? winnerPlayer.score : 0} points!</strong>
-            </p>
+
+            {isSelfLoser ? (
+              <>
+                <h1 className="text-3xl md:text-4xl font-extrabold text-rose-500 uppercase tracking-tight font-display">
+                  💥 YOU RE CLOWNED & TAGGED!
+                </h1>
+                <p className="text-sm text-slate-300 mt-2 max-w-md">
+                  Oh no! You held the designated tag at the final second. 
+                  <strong className="text-rose-400 font-display block mt-1 uppercase text-lg">You are declared the Loser! 🤡</strong>
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-3xl md:text-4xl font-extrabold text-white uppercase tracking-tight font-display">
+                  {loserPlayer ? loserPlayer.name : 'Someone'} Lost the Match!
+                </h1>
+                <p className="text-sm text-slate-300 mt-2 max-w-md">
+                  They held the dangerous tag when the timer ran out and failed to pass it! 
+                  <strong className="text-orange-400 font-display block mt-1 uppercase text-lg">They are the Loser! 🎯</strong>
+                </p>
+              </>
+            )}
           </div>
 
           {/* Full Standings Table */}
           <div className="w-full max-w-lg bg-slate-950/60 border border-slate-800 rounded-xl p-4 mb-6 z-10 text-left select-none">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 font-mono">
-              Final scoreboard standings
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-3 font-mono flex justify-between items-center">
+              <span>Final scoreboard & match status</span>
+              <span className="text-[10px] text-rose-500 lowercase font-normal italic">tagged player loses</span>
             </h3>
             <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
               {sortedStandings.map((player, idx) => {
+                const isThisLoser = loserPlayer && player.id === loserPlayer.id;
                 const placingColor = idx === 0 ? 'text-amber-400' : idx === 1 ? 'text-slate-300' : idx === 2 ? 'text-amber-600' : 'text-slate-500';
 
                 return (
                   <div
                     id={`gameover-standing-${player.id}`}
                     key={player.id}
-                    className="flex items-center justify-between p-2 rounded bg-slate-900/50 border border-slate-850"
+                    className={`flex items-center justify-between p-2 rounded transition ${
+                      isThisLoser 
+                        ? 'bg-rose-950/30 border border-rose-800/50 shadow-sm shadow-rose-900/10' 
+                        : 'bg-slate-900/50 border border-slate-850'
+                    }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <span className={`text-sm font-black font-mono w-4 ${placingColor}`}>
@@ -973,12 +1062,21 @@ export default function App() {
                       </span>
                       <div className="w-5 h-5 rounded-full" style={{ backgroundColor: player.color }} />
                       <span className="text-xs font-bold text-slate-300 truncate max-w-[150px]">
-                        {player.name}
+                        {player.name} {player.id === personalId && <span className="text-[9px] text-sky-400">(You)</span>}
                       </span>
                     </div>
-
-                    <div className="text-right">
+                    
+                    <div className="flex items-center gap-2">
                       <span className="text-xs font-black font-mono text-slate-200">{player.score} pts</span>
+                      {isThisLoser ? (
+                        <span className="text-[9px] font-black uppercase text-rose-500 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded ml-1 animate-pulse">
+                          💀 Loser
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-black uppercase text-emerald-500 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded ml-1">
+                          Escaped 🎉
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
