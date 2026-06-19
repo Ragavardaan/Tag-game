@@ -453,16 +453,16 @@ export default function App() {
                         onChange={(e) => setMapSelection(e.target.value as any)}
                         className="w-full bg-slate-950 text-xs font-bold text-slate-300 border border-slate-800 rounded-lg p-2.5 hover:border-slate-700 outline-none capitalize"
                       >
-                        <option value="arena">Arena Bumpers</option>
-                        <option value="maze">Symmetric Maze</option>
-                        <option value="blocks">Rigid Pillars</option>
-                        <option value="open">Open Field</option>
+                        <option value="open">🍀 Summer Garden</option>
+                        <option value="blocks">❄️ Winter Mountains</option>
+                        <option value="arena">🏖️ Sandy Beach</option>
+                        <option value="maze">🐫 Egyptian Desert</option>
                       </select>
                       <div className="text-[9px] text-slate-500 italic mt-1 bg-slate-950/30 p-1.5 border border-slate-850 rounded">
-                        {mapSelection === 'arena' && 'Classic with corner hurdles & middle slits.'}
-                        {mapSelection === 'maze' && 'Packed tunnels that block simple chase lines.'}
-                        {mapSelection === 'blocks' && 'Structured uniform column blocks.'}
-                        {mapSelection === 'open' && 'Bare open field with a tiny central post.'}
+                        {mapSelection === 'open' && 'Lush green summer meadow with a center monument.'}
+                        {mapSelection === 'blocks' && 'Chilly snowfields packed with ice columns and frosty structures.'}
+                        {mapSelection === 'arena' && 'Sun-soaked seaside sand with coral barricades and palms.'}
+                        {mapSelection === 'maze' && 'Ancient hot Egyptian valley and deep sandstone pyramids.'}
                       </div>
                     </div>
                   </div>
@@ -702,10 +702,10 @@ export default function App() {
                     onChange={(e) => setMapSelection(e.target.value as any)}
                     className="w-full bg-slate-950 text-xs font-bold text-slate-350 border border-slate-800 rounded p-2 outline-none capitalize disabled:opacity-60"
                   >
-                    <option value="arena">Arena Blockades</option>
-                    <option value="maze">Narrow Maze</option>
-                    <option value="blocks">Rigid Pillars</option>
-                    <option value="open">Open Grassland</option>
+                    <option value="open">🍀 Summer Garden</option>
+                    <option value="blocks">❄️ Winter Mountains</option>
+                    <option value="arena">🏖️ Sandy Beach</option>
+                    <option value="maze">🐫 Egyptian Desert</option>
                   </select>
                 </div>
 
