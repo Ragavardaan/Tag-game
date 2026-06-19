@@ -4,7 +4,7 @@ import path from 'path';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { createServer as createViteServer } from 'vite';
 import { GameConfig, Player, PowerUp, Room, ClientMessage, ServerMessage, Wall } from './src/types';
-import { MAP_WIDTH, MAP_HEIGHT, PLAYER_RADIUS, POWERUP_RADIUS, MAP_WALLS } from './src/maps';
+import { MAP_WIDTH, MAP_HEIGHT, PLAYER_RADIUS, POWERUP_RADIUS, MAP_WALLS, MAP_PORTALS, PORTAL_RADIUS } from './src/maps';
 
 const app = express();
 const server = http.createServer(app);
@@ -177,11 +177,13 @@ function startGameLoop(roomCode: string) {
           }
         }
 
-        // Spawn powerups dynamically
+        // Space powerups spawning is disabled - we only have static 3D teleport portals
+        /*
         if (now - lastPowerUpSpawnTime >= 8000) {
           spawnPowerUp(roomCode);
           lastPowerUpSpawnTime = now;
         }
+        */
 
         // Bomb explodes timer!
         if (room.timer <= 0) {
@@ -570,6 +572,37 @@ io.on('connection', (socket) => {
           player.y = data.y;
           player.vx = data.vx;
           player.vy = data.vy;
+
+          // Process permanent active two-point portal teleportation
+          const portals = MAP_PORTALS[room.config.map];
+          if (portals && portals.length === 2) {
+            const nowTs = Date.now();
+            const lastTele = player.lastTeleportTime || 0;
+            if (nowTs - lastTele > 1500) { // 1.5 seconds cooldown
+              for (let i = 0; i < 2; i++) {
+                const portal = portals[i];
+                const dx = player.x - portal.x;
+                const dy = player.y - portal.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < PLAYER_RADIUS + PORTAL_RADIUS) {
+                  const otherPortal = portals[1 - i];
+                  player.x = otherPortal.x;
+                  player.y = otherPortal.y;
+                  player.lastTeleportTime = nowTs;
+                  player.vx = 0;
+                  player.vy = 0;
+
+                  // Broadcast a nice ticker event for everyone
+                  broadcastToRoom(info.roomCode, {
+                    type: 'powerup_grant',
+                    powerupType: 'Portal Teleporter 🌀',
+                    playerName: player.name
+                  });
+                  break;
+                }
+              }
+            }
+          }
 
           // Broadcast quick minimal delta positions or full update?
           // To keep code highly reliable and robust, broadcast fully synced rooms 
